@@ -10,7 +10,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use libc::{c_double, c_int, c_long, size_t};
-use ndtensors::{Tensor, contract};
+use ndtensors::{Tensor, contract, contract_vjp};
 use std::panic::catch_unwind;
 use std::ptr;
 
@@ -508,6 +508,104 @@ pub extern "C" fn ndt_tensor_f64_contract(
     }
 }
 
+/// Compute VJP (Vector-Jacobian Product) for tensor contraction.
+///
+/// Given the forward pass `c = contract(a, labels_a, b, labels_b)` and the gradient
+/// of the loss with respect to `c` (`grad_output`), this computes the gradients
+/// with respect to `a` and `b`.
+///
+/// # Arguments
+/// * `a` - First tensor from forward pass
+/// * `labels_a` - Labels for each dimension of `a`
+/// * `ndim_a` - Number of dimensions of `a`
+/// * `b` - Second tensor from forward pass
+/// * `labels_b` - Labels for each dimension of `b`
+/// * `ndim_b` - Number of dimensions of `b`
+/// * `grad_output` - Gradient of loss with respect to output
+/// * `grad_a_out` - Output: pointer to receive grad_a tensor
+/// * `grad_b_out` - Output: pointer to receive grad_b tensor
+/// * `status` - Pointer to receive status code
+///
+/// # Ownership
+/// On success, `grad_a_out` and `grad_b_out` will point to newly allocated tensors.
+/// The caller is responsible for releasing these tensors by calling
+/// `ndt_tensor_f64_release` when they are no longer needed.
+#[unsafe(no_mangle)]
+pub extern "C" fn ndt_tensor_f64_contract_vjp(
+    a: *const ndt_tensor_f64,
+    labels_a: *const c_long,
+    ndim_a: size_t,
+    b: *const ndt_tensor_f64,
+    labels_b: *const c_long,
+    ndim_b: size_t,
+    grad_output: *const ndt_tensor_f64,
+    grad_a_out: *mut *mut ndt_tensor_f64,
+    grad_b_out: *mut *mut ndt_tensor_f64,
+    status: *mut StatusCode,
+) {
+    if status.is_null() {
+        return;
+    }
+
+    if a.is_null()
+        || b.is_null()
+        || grad_output.is_null()
+        || labels_a.is_null()
+        || labels_b.is_null()
+        || grad_a_out.is_null()
+        || grad_b_out.is_null()
+    {
+        unsafe {
+            *status = NDT_INVALID_ARGUMENT;
+        }
+        return;
+    }
+
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
+        let tensor_a = (*a).inner();
+        let tensor_b = (*b).inner();
+        let tensor_grad_output = (*grad_output).inner();
+        let labels_a_slice = std::slice::from_raw_parts(labels_a, ndim_a);
+        let labels_b_slice = std::slice::from_raw_parts(labels_b, ndim_b);
+
+        // Convert c_long to i32
+        let labels_a_i32: Vec<i32> = labels_a_slice.iter().map(|&l| l as i32).collect();
+        let labels_b_i32: Vec<i32> = labels_b_slice.iter().map(|&l| l as i32).collect();
+
+        match contract_vjp(
+            tensor_a,
+            &labels_a_i32,
+            tensor_b,
+            &labels_b_i32,
+            tensor_grad_output,
+        ) {
+            Ok((grad_a, grad_b)) => {
+                let grad_a_ptr = Box::into_raw(Box::new(ndt_tensor_f64::from_tensor(grad_a)));
+                let grad_b_ptr = Box::into_raw(Box::new(ndt_tensor_f64::from_tensor(grad_b)));
+                *grad_a_out = grad_a_ptr;
+                *grad_b_out = grad_b_ptr;
+                NDT_SUCCESS
+            }
+            Err(_) => {
+                *grad_a_out = ptr::null_mut();
+                *grad_b_out = ptr::null_mut();
+                NDT_SHAPE_MISMATCH
+            }
+        }
+    }));
+
+    match result {
+        Ok(code) => unsafe {
+            *status = code;
+        },
+        Err(_) => unsafe {
+            *status = NDT_INTERNAL_ERROR;
+            *grad_a_out = ptr::null_mut();
+            *grad_b_out = ptr::null_mut();
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -672,5 +770,77 @@ mod tests {
         ndt_tensor_f64_release(a);
         ndt_tensor_f64_release(b);
         ndt_tensor_f64_release(c);
+    }
+
+    #[test]
+    fn test_tensor_contract_vjp() {
+        // Matrix multiplication VJP: A[2x3] * B[3x4] = C[2x4]
+        let mut status: StatusCode = -999;
+
+        // Create A: 2x3 matrix of ones
+        let shape_a = [2usize, 3usize];
+        let a = ndt_tensor_f64_zeros(shape_a.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(a, 1.0), NDT_SUCCESS);
+
+        // Create B: 3x4 matrix of ones
+        let shape_b = [3usize, 4usize];
+        let b = ndt_tensor_f64_zeros(shape_b.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(b, 1.0), NDT_SUCCESS);
+
+        // Create grad_output: 2x4 matrix of ones
+        let shape_grad = [2usize, 4usize];
+        let grad_output = ndt_tensor_f64_zeros(shape_grad.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(grad_output, 1.0), NDT_SUCCESS);
+
+        // Labels
+        let labels_a = [1i64, -1i64];
+        let labels_b = [-1i64, 2i64];
+
+        let mut grad_a: *mut ndt_tensor_f64 = ptr::null_mut();
+        let mut grad_b: *mut ndt_tensor_f64 = ptr::null_mut();
+
+        ndt_tensor_f64_contract_vjp(
+            a,
+            labels_a.as_ptr() as *const c_long,
+            2,
+            b,
+            labels_b.as_ptr() as *const c_long,
+            2,
+            grad_output,
+            &mut grad_a,
+            &mut grad_b,
+            &mut status,
+        );
+
+        assert_eq!(status, NDT_SUCCESS);
+        assert!(!grad_a.is_null());
+        assert!(!grad_b.is_null());
+
+        // Check grad_a shape is 2x3
+        assert_eq!(ndt_tensor_f64_ndim(grad_a), 2);
+        let mut ga_shape = [0usize; 2];
+        ndt_tensor_f64_shape(grad_a, ga_shape.as_mut_ptr());
+        assert_eq!(ga_shape, [2, 3]);
+
+        // Check grad_b shape is 3x4
+        assert_eq!(ndt_tensor_f64_ndim(grad_b), 2);
+        let mut gb_shape = [0usize; 2];
+        ndt_tensor_f64_shape(grad_b, gb_shape.as_mut_ptr());
+        assert_eq!(gb_shape, [3, 4]);
+
+        // grad_a[i,j] = sum_k B[j,k] = 4 (since B is all ones and has 4 columns)
+        let mut val = 0.0;
+        assert_eq!(ndt_tensor_f64_get_linear(grad_a, 0, &mut val), NDT_SUCCESS);
+        assert_eq!(val, 4.0);
+
+        // grad_b[j,k] = sum_i A[i,j] = 2 (since A is all ones and has 2 rows)
+        assert_eq!(ndt_tensor_f64_get_linear(grad_b, 0, &mut val), NDT_SUCCESS);
+        assert_eq!(val, 2.0);
+
+        ndt_tensor_f64_release(a);
+        ndt_tensor_f64_release(b);
+        ndt_tensor_f64_release(grad_output);
+        ndt_tensor_f64_release(grad_a);
+        ndt_tensor_f64_release(grad_b);
     }
 }

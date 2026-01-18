@@ -772,6 +772,58 @@ pub fn to_dlpack(&self) -> DLManagedTensor {
 }
 ```
 
+### Managed Tensor Pattern (Future Option)
+
+Inspired by DLPack's `DLManagedTensor`, we could embed the deleter function pointer in the tensor struct itself. This makes the tensor self-describing for memory management:
+
+```rust
+/// Managed tensor with embedded deleter (DLPack-inspired pattern)
+#[repr(C)]
+pub struct ndt_managed_tensor_f64 {
+    pub tensor: *mut ndt_tensor_f64,
+    pub manager_ctx: *mut c_void,  // Optional: additional context
+    pub deleter: Option<unsafe extern "C" fn(*mut ndt_managed_tensor_f64)>,
+}
+
+// Generic version for Rust internal use
+pub struct ManagedTensor<T> {
+    tensor: Box<Tensor<T>>,
+    deleter: Option<fn(&mut Self)>,
+}
+
+// C API types can be generated via macro
+macro_rules! define_managed_tensor {
+    ($name:ident, $tensor_type:ty) => {
+        #[repr(C)]
+        pub struct $name {
+            pub tensor: *mut $tensor_type,
+            pub manager_ctx: *mut c_void,
+            pub deleter: Option<unsafe extern "C" fn(*mut $name)>,
+        }
+    };
+}
+
+define_managed_tensor!(ndt_managed_tensor_f64, ndt_tensor_f64);
+define_managed_tensor!(ndt_managed_tensor_c64, ndt_tensor_c64);
+```
+
+**Benefits**:
+- **Self-contained**: Consumer doesn't need to know about `ndt_tensor_f64_release`
+- **Library-agnostic**: Works with any language that can call function pointers
+- **Flexible memory management**: Different allocators or memory pools can use custom deleters
+
+**Trade-offs**:
+- More complex than current simple opaque pointer pattern
+- Additional indirection
+- Current finalizer-based approach is sufficient for Julia-only use
+
+**When to consider**:
+- Multi-language support (Python, C++, etc.)
+- Custom memory allocators
+- Complex ownership scenarios
+
+For now, the current opaque pointer + explicit release function pattern is simpler and works well with Julia's finalizer mechanism.
+
 ---
 
 ## Operations

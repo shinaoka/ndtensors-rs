@@ -52,6 +52,18 @@ cargo test --test test_name   # Specific test
 
 Only make functions `pub` when truly public API.
 
+### C API Documentation
+
+For C API functions that return pointers to newly allocated objects:
+- **Document ownership in docstrings.** Clearly state that the caller is responsible for releasing the returned objects.
+- Example:
+  ```rust
+  /// # Ownership
+  /// On success, `result_out` will point to a newly allocated tensor.
+  /// The caller is responsible for releasing this tensor by calling
+  /// `ndt_tensor_f64_release` when it is no longer needed.
+  ```
+
 ### Layering and Maintainability
 
 **Respect crate boundaries and abstraction layers.**

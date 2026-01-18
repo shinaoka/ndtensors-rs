@@ -16,4 +16,8 @@ pub enum TensorError {
     /// Wrong number of indices provided.
     #[error("wrong number of indices: expected {expected}, got {actual}")]
     WrongNumberOfIndices { expected: usize, actual: usize },
+
+    /// Invalid permutation.
+    #[error("invalid permutation {perm:?} for tensor with {ndim} dimensions")]
+    InvalidPermutation { perm: Vec<usize>, ndim: usize },
 }

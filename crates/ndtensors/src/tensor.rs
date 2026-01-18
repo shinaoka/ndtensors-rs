@@ -194,6 +194,89 @@ impl<T: Scalar> Tensor<T> {
         t.fill(T::one());
         t
     }
+
+    /// Permute the dimensions of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `perm` - Permutation of dimensions. `perm[i]` gives the source dimension
+    ///   for the i-th dimension of the result.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if `perm` is not a valid permutation of `0..ndim`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use ndtensors::Tensor;
+    ///
+    /// // Create a 2x3 tensor
+    /// let t = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]).unwrap();
+    ///
+    /// // Transpose (swap dimensions 0 and 1)
+    /// let t2 = t.permutedims(&[1, 0]).unwrap();
+    /// assert_eq!(t2.shape(), &[3, 2]);
+    ///
+    /// // t[i,j] == t2[j,i]
+    /// assert_eq!(t.get(&[0, 0]), t2.get(&[0, 0]));
+    /// assert_eq!(t.get(&[1, 0]), t2.get(&[0, 1]));
+    /// assert_eq!(t.get(&[0, 2]), t2.get(&[2, 0]));
+    /// ```
+    pub fn permutedims(&self, perm: &[usize]) -> Result<Self, TensorError> {
+        // Validate permutation
+        if perm.len() != self.ndim() {
+            return Err(TensorError::InvalidPermutation {
+                perm: perm.to_vec(),
+                ndim: self.ndim(),
+            });
+        }
+
+        let mut seen = vec![false; self.ndim()];
+        for &p in perm {
+            if p >= self.ndim() {
+                return Err(TensorError::InvalidPermutation {
+                    perm: perm.to_vec(),
+                    ndim: self.ndim(),
+                });
+            }
+            if seen[p] {
+                return Err(TensorError::InvalidPermutation {
+                    perm: perm.to_vec(),
+                    ndim: self.ndim(),
+                });
+            }
+            seen[p] = true;
+        }
+
+        // Compute new shape
+        let new_shape: Vec<usize> = perm.iter().map(|&p| self.shape[p]).collect();
+
+        // Create output tensor
+        let mut result = Self::zeros(&new_shape);
+
+        // Copy data with permutation
+        let old_shape = &self.shape;
+        let new_strides = &result.strides;
+
+        // Iterate over all elements
+        let total = self.len();
+        for linear_old in 0..total {
+            // Convert to old cartesian indices
+            let old_indices = crate::strides::linear_to_cartesian(linear_old, old_shape);
+
+            // Permute to new indices: new_indices[i] = old_indices[perm[i]]
+            let new_indices: Vec<usize> = perm.iter().map(|&p| old_indices[p]).collect();
+
+            // Convert to new linear index
+            let linear_new = cartesian_to_linear(&new_indices, new_strides);
+
+            // Copy value
+            result.storage[linear_new] = self.storage[linear_old];
+        }
+
+        Ok(result)
+    }
 }
 
 #[cfg(test)]
@@ -301,5 +384,73 @@ mod tests {
         assert_eq!(t.ndim(), 3);
         assert_eq!(t.len(), 24);
         assert_eq!(t.strides(), &[1, 2, 6]);
+    }
+
+    #[test]
+    fn test_permutedims_transpose() {
+        // 2x3 matrix
+        let t = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]).unwrap();
+
+        // Transpose
+        let t2 = t.permutedims(&[1, 0]).unwrap();
+        assert_eq!(t2.shape(), &[3, 2]);
+
+        // t[i,j] == t2[j,i]
+        for i in 0..2 {
+            for j in 0..3 {
+                assert_eq!(t.get(&[i, j]), t2.get(&[j, i]));
+            }
+        }
+    }
+
+    #[test]
+    fn test_permutedims_3d() {
+        // 2x3x4 tensor
+        let mut t: Tensor<f64> = Tensor::zeros(&[2, 3, 4]);
+        for i in 0..2 {
+            for j in 0..3 {
+                for k in 0..4 {
+                    t.set(&[i, j, k], (i * 100 + j * 10 + k) as f64).unwrap();
+                }
+            }
+        }
+
+        // Permute [0,1,2] -> [2,0,1]: shape 2x3x4 -> 4x2x3
+        let t2 = t.permutedims(&[2, 0, 1]).unwrap();
+        assert_eq!(t2.shape(), &[4, 2, 3]);
+
+        // t[i,j,k] == t2[k,i,j]
+        for i in 0..2 {
+            for j in 0..3 {
+                for k in 0..4 {
+                    assert_eq!(t.get(&[i, j, k]), t2.get(&[k, i, j]));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_permutedims_identity() {
+        let t = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]).unwrap();
+
+        // Identity permutation
+        let t2 = t.permutedims(&[0, 1]).unwrap();
+        assert_eq!(t2.shape(), &[2, 3]);
+        assert_eq!(t.data(), t2.data());
+    }
+
+    #[test]
+    fn test_permutedims_invalid() {
+        let t: Tensor<f64> = Tensor::zeros(&[2, 3]);
+
+        // Wrong number of dimensions
+        assert!(t.permutedims(&[0]).is_err());
+        assert!(t.permutedims(&[0, 1, 2]).is_err());
+
+        // Invalid index
+        assert!(t.permutedims(&[0, 2]).is_err());
+
+        // Duplicate index
+        assert!(t.permutedims(&[0, 0]).is_err());
     }
 }

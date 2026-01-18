@@ -1,8 +1,9 @@
 module NDTensorsRS
 
 using Libdl
+using ChainRulesCore
 
-export TensorF64, contract
+export TensorF64, contract, contract_vjp
 
 # Load the shared library
 const libpath = joinpath(dirname(dirname(@__FILE__)), "deps", "libndtensors_capi.$(dlext)")
@@ -336,6 +337,109 @@ function contract(a::TensorF64, labels_a, b::TensorF64, labels_b)
     end
 
     TensorF64(ptr)
+end
+
+"""
+    contract_vjp(a::TensorF64, labels_a, b::TensorF64, labels_b, grad_output::TensorF64)
+
+Compute the VJP (Vector-Jacobian Product) for tensor contraction.
+
+Given the forward pass `c = contract(a, labels_a, b, labels_b)` and the gradient
+of the loss with respect to `c` (`grad_output`), returns the gradients
+with respect to `a` and `b`.
+
+# Returns
+A tuple `(grad_a, grad_b)` where:
+- `grad_a` has the same shape as `a`
+- `grad_b` has the same shape as `b`
+
+Both returned tensors are newly allocated and managed by Julia's garbage collector
+via finalizers. They will be automatically released when no longer referenced.
+
+# Examples
+```julia
+# Matrix multiplication VJP
+a = TensorF64(2, 3)
+fill!(a, 1.0)
+b = TensorF64(3, 4)
+fill!(b, 1.0)
+c = contract(a, (1, -1), b, (-1, 2))
+
+grad_c = TensorF64(2, 4)
+fill!(grad_c, 1.0)
+
+grad_a, grad_b = contract_vjp(a, (1, -1), b, (-1, 2), grad_c)
+```
+"""
+function contract_vjp(a::TensorF64, labels_a, b::TensorF64, labels_b, grad_output::TensorF64)
+    nd_a = ndims(a)
+    nd_b = ndims(b)
+
+    if length(labels_a) != nd_a
+        throw(ArgumentError("labels_a must have length $(nd_a), got $(length(labels_a))"))
+    end
+    if length(labels_b) != nd_b
+        throw(ArgumentError("labels_b must have length $(nd_b), got $(length(labels_b))"))
+    end
+
+    labels_a_arr = collect(Clong, labels_a)
+    labels_b_arr = collect(Clong, labels_b)
+    status = Ref{Cint}(-999)
+    grad_a_ptr = Ref{Ptr{Cvoid}}(C_NULL)
+    grad_b_ptr = Ref{Ptr{Cvoid}}(C_NULL)
+
+    ccall(
+        (:ndt_tensor_f64_contract_vjp, libpath),
+        Cvoid,
+        (Ptr{Cvoid}, Ptr{Clong}, Csize_t,
+         Ptr{Cvoid}, Ptr{Clong}, Csize_t,
+         Ptr{Cvoid},
+         Ptr{Ptr{Cvoid}}, Ptr{Ptr{Cvoid}},
+         Ptr{Cint}),
+        a.ptr, labels_a_arr, nd_a,
+        b.ptr, labels_b_arr, nd_b,
+        grad_output.ptr,
+        grad_a_ptr, grad_b_ptr,
+        status
+    )
+
+    if status[] == NDT_SHAPE_MISMATCH
+        throw(DimensionMismatch("contracted dimensions must have matching sizes"))
+    elseif status[] != NDT_SUCCESS
+        error("Failed to compute contract VJP: status = $(status[])")
+    end
+
+    return (TensorF64(grad_a_ptr[]), TensorF64(grad_b_ptr[]))
+end
+
+# ChainRules.jl integration
+"""
+    ChainRulesCore.rrule(::typeof(contract), a::TensorF64, labels_a, b::TensorF64, labels_b)
+
+Reverse-mode AD rule for tensor contraction.
+
+This enables automatic differentiation through `contract` using AD frameworks
+like Zygote.jl that support ChainRules.jl.
+"""
+function ChainRulesCore.rrule(::typeof(contract), a::TensorF64, labels_a, b::TensorF64, labels_b)
+    c = contract(a, labels_a, b, labels_b)
+
+    function contract_pullback(Δc)
+        # Δc might be a tangent type, need to handle appropriately
+        # For now, assume Δc is a TensorF64 or can be converted
+        if Δc isa TensorF64
+            grad_a, grad_b = contract_vjp(a, labels_a, b, labels_b, Δc)
+            return (NoTangent(), grad_a, NoTangent(), grad_b, NoTangent())
+        else
+            # If Δc is not TensorF64, convert it
+            # This handles cases where AD returns Array{Float64}
+            Δc_tensor = TensorF64(Array{Float64}(Δc), size(c))
+            grad_a, grad_b = contract_vjp(a, labels_a, b, labels_b, Δc_tensor)
+            return (NoTangent(), grad_a, NoTangent(), grad_b, NoTangent())
+        end
+    end
+
+    return c, contract_pullback
 end
 
 end # module

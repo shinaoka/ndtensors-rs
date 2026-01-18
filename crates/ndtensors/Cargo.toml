@@ -1,0 +1,15 @@
+[package]
+name = "ndtensors"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Rust port of NDTensors.jl - tensor operations for ITensors"
+
+[dependencies]
+faer.workspace = true
+faer-traits.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+approx.workspace = true

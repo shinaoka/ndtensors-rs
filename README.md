@@ -37,4 +37,4 @@ This is a port of **NDTensors.jl** from **ITensors.jl**. Please cite:
 
 ## License
 
-MIT License (see [LICENSE-MIT](../../LICENSE-MIT))
+Apache License 2.0 (see [LICENSE-APACHE](LICENSE-APACHE))

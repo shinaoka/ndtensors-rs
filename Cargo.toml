@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/tensor4all/ndtensors-rs"
+
+[workspace.dependencies]
+faer = "0.21"
+faer-traits = "0.21"
+thiserror = "2"
+approx = "0.5"

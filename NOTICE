@@ -1,0 +1,18 @@
+ndtensors-rs
+============
+
+This project is a Rust port of NDTensors.jl from ITensors.jl.
+
+Original Work:
+  NDTensors.jl
+  Copyright 2019 The Simons Foundation, Inc.
+  Licensed under Apache License 2.0
+  https://github.com/ITensor/ITensors.jl
+
+  Citation:
+  M. Fishman, S. R. White, E. M. Stoudenmire,
+  "The ITensor Software Library for Tensor Network Calculations",
+  SciPost Phys. Codebases 4 (2022), arXiv:2007.14822
+
+Rust Port:
+  Copyright 2025 Hiroshi Shinaoka

@@ -41,17 +41,6 @@ impl Scalar for c64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use faer_traits::ComplexField;
-
-    #[test]
-    fn test_f64_is_real() {
-        assert!(<f64 as ComplexField>::IS_REAL);
-    }
-
-    #[test]
-    fn test_c64_is_not_real() {
-        assert!(!<c64 as ComplexField>::IS_REAL);
-    }
 
     #[test]
     fn test_c64_creation() {

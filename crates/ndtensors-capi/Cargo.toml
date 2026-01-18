@@ -1,0 +1,15 @@
+[package]
+name = "ndtensors-capi"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "C API for ndtensors - tensor operations for ITensors"
+
+[lib]
+name = "ndtensors_capi"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+ndtensors = { path = "../ndtensors" }
+libc.workspace = true

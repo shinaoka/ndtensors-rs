@@ -294,7 +294,56 @@ When exporting a tensor to Julia/Python:
 - If Rust side drops all references, data is freed while Julia still uses it
 - If Julia modifies data, Rust's saved references (for AD) become invalid
 
-### Solution: Export Policy
+### Current Implementation: Opaque Pointer Pattern
+
+Following the pattern established in `sparse-ir-rs`, we use an opaque pointer approach for the C API:
+
+```rust
+/// Opaque tensor type for f64
+#[repr(C)]
+pub struct ndt_tensor_f64 {
+    _private: *mut std::ffi::c_void,  // Box<Tensor<f64>>
+}
+```
+
+**Key Design Decisions**:
+
+1. **Rust owns the tensor**: Tensor objects are created and owned by Rust (`Box::new`). Julia holds an opaque pointer.
+
+2. **Explicit lifecycle management**: Julia must call `ndt_tensor_f64_release()` to free the tensor. We use Julia's finalizer to ensure cleanup.
+
+3. **Status codes for error handling**: All fallible operations return status codes, allowing proper error propagation across FFI boundary.
+
+4. **Panic safety**: All C API functions use `catch_unwind` to convert Rust panics into error codes.
+
+### Zero-Copy Data Access
+
+When Rust creates a tensor and Julia needs to read/write its data:
+
+```rust
+// Rust side: return pointer to internal data
+#[unsafe(no_mangle)]
+pub extern "C" fn ndt_tensor_f64_data(tensor: *const ndt_tensor_f64) -> *const c_double {
+    // Returns pointer directly into Rust's Vec<f64>
+    (*tensor).inner().data().as_ptr()
+}
+```
+
+```julia
+# Julia side: wrap pointer as Array (zero-copy)
+data_ptr = unsafe_data(t)
+arr = unsafe_wrap(Array, data_ptr, length(t))  # No copy!
+```
+
+**When data is copied**:
+- Creating tensor from Julia Array → data copied to Rust
+- Converting Rust tensor to Julia Array → data copied to Julia
+
+**When zero-copy**:
+- Rust creates tensor, Julia reads via `unsafe_wrap` → no copy
+- Rust creates tensor, Julia writes via pointer → no copy
+
+### Solution: Export Policy (Future)
 
 ```rust
 impl<T: Clone> Tensor<T> {
@@ -482,8 +531,97 @@ pub extern "C" fn ndtensor_contract_jvp(
 - [ ] ChainRules.jl integration
 - [ ] Python autograd interop (JAX custom_vjp, PyTorch autograd.Function)
 
+## Project Structure
+
+```
+ndtensors-rs/
+├── Cargo.toml              # workspace root
+├── crates/
+│   ├── ndtensors/          # Core tensor library
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── scalar.rs   # Scalar trait (wraps faer ComplexField)
+│   │       ├── error.rs
+│   │       ├── strides.rs
+│   │       ├── storage/
+│   │       │   ├── mod.rs
+│   │       │   └── dense.rs
+│   │       └── tensor.rs
+│   └── ndtensors-capi/     # C API for FFI
+│       └── src/lib.rs
+├── julia/
+│   └── NDTensorsRS/        # Julia bindings
+│       ├── Project.toml
+│       ├── deps/build.jl   # Calls cargo build
+│       ├── src/NDTensorsRS.jl
+│       └── test/runtests.jl
+└── docs/
+    └── design.md
+```
+
+## C API Design
+
+The C API follows these principles:
+
+### Status Codes
+
+```rust
+pub const NDT_SUCCESS: StatusCode = 0;
+pub const NDT_INVALID_ARGUMENT: StatusCode = -1;
+pub const NDT_SHAPE_MISMATCH: StatusCode = -2;
+pub const NDT_INDEX_OUT_OF_BOUNDS: StatusCode = -3;
+pub const NDT_INTERNAL_ERROR: StatusCode = -4;
+```
+
+### Function Naming Convention
+
+- `ndt_tensor_f64_*` - operations on f64 tensors
+- Future: `ndt_tensor_c64_*` - operations on c64 tensors
+
+### Lifecycle Functions
+
+```rust
+// Creation
+ndt_tensor_f64_zeros(shape, ndim, status) -> *mut ndt_tensor_f64
+ndt_tensor_f64_from_data(data, len, shape, ndim, status) -> *mut ndt_tensor_f64
+
+// Destruction
+ndt_tensor_f64_release(tensor)
+
+// Copy
+ndt_tensor_f64_clone(src) -> *mut ndt_tensor_f64
+```
+
+## Implementation Notes
+
+### Memory Layout
+
+Both Faer and NDTensors.jl use **column-major** storage order:
+
+- **Faer**: Confirmed in `faer/src/mat/mod.rs`
+- **NDTensors.jl**: Uses `Base.size_to_strides(1, dims...)` (standard Julia column-major)
+- **ndtensors-rs**: Follows the same convention
+
+This ensures zero-copy interop between Rust tensors and Julia arrays.
+
+### Scalar Types
+
+We use Faer's `ComplexField` trait as the foundation for scalar types:
+
+```rust
+pub trait Scalar: ComplexField + Copy + Debug + Default + 'static {
+    type Real: Scalar;
+    fn zero() -> Self;
+    fn one() -> Self;
+}
+
+impl Scalar for f64 { ... }
+impl Scalar for c64 { ... }  // faer::c64 (Complex64)
+```
+
 ## References
 
 - [NDTensors.jl](https://github.com/ITensor/ITensors.jl/tree/main/NDTensors)
 - [ITensors.jl paper](https://arxiv.org/abs/2007.14822)
+- [sparse-ir-rs](https://github.com/tensor4all/sparse-ir-rs) - C API pattern reference
 - PyTorch autograd design

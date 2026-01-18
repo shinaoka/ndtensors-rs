@@ -2,7 +2,7 @@ module NDTensorsRS
 
 using Libdl
 
-export TensorF64
+export TensorF64, contract
 
 # Load the shared library
 const libpath = joinpath(dirname(dirname(@__FILE__)), "deps", "libndtensors_capi.$(dlext)")
@@ -19,6 +19,7 @@ const NDT_INVALID_ARGUMENT = Cint(-1)
 const NDT_SHAPE_MISMATCH = Cint(-2)
 const NDT_INDEX_OUT_OF_BOUNDS = Cint(-3)
 const NDT_INTERNAL_ERROR = Cint(-4)
+const NDT_INVALID_PERMUTATION = Cint(-5)
 
 """
     TensorF64
@@ -233,6 +234,108 @@ end
 function Base.show(io::IO, ::MIME"text/plain", t::TensorF64)
     println(io, "TensorF64 with shape $(size(t)):")
     show(io, MIME"text/plain"(), Array(t))
+end
+
+"""
+    permutedims(t::TensorF64, perm)
+
+Permute the dimensions of the tensor.
+
+# Arguments
+- `perm`: A tuple or vector specifying the permutation. `perm[i]` gives the source
+  dimension for the i-th dimension of the result. Uses 1-based indexing.
+
+# Examples
+```julia
+t = TensorF64([1.0 3.0; 2.0 4.0], (2, 2))
+t2 = permutedims(t, (2, 1))  # Transpose
+```
+"""
+function Base.permutedims(t::TensorF64, perm)
+    nd = ndims(t)
+    if length(perm) != nd
+        throw(ArgumentError("permutation must have length $(nd), got $(length(perm))"))
+    end
+    # Convert 1-based Julia indexing to 0-based Rust indexing
+    perm_arr = collect(Csize_t, p - 1 for p in perm)
+    status = Ref{Cint}(-999)
+    ptr = ccall(
+        (:ndt_tensor_f64_permutedims, libpath),
+        Ptr{Cvoid},
+        (Ptr{Cvoid}, Ptr{Csize_t}, Csize_t, Ptr{Cint}),
+        t.ptr, perm_arr, nd, status
+    )
+    if status[] == NDT_INVALID_PERMUTATION
+        throw(ArgumentError("invalid permutation: $perm"))
+    elseif status[] != NDT_SUCCESS
+        error("Failed to permute tensor: status = $(status[])")
+    end
+    TensorF64(ptr)
+end
+
+"""
+    contract(a::TensorF64, labels_a, b::TensorF64, labels_b)
+
+Contract two tensors using label-based contraction.
+
+# Arguments
+- `a`: First tensor
+- `labels_a`: Labels for each dimension of `a`
+- `b`: Second tensor
+- `labels_b`: Labels for each dimension of `b`
+
+Labels are integers where:
+- Negative values indicate contracted indices (matched between tensors)
+- Positive values indicate uncontracted indices (appear in output)
+
+# Examples
+```julia
+# Matrix multiplication: C[i,k] = A[i,j] * B[j,k]
+a = TensorF64(2, 3)
+fill!(a, 1.0)
+b = TensorF64(3, 4)
+fill!(b, 1.0)
+
+# A[1,-1] * B[-1,2] -> C[1,2]
+c = contract(a, (1, -1), b, (-1, 2))
+# c is 2x4, each element is 3.0
+
+# Inner product: sum over all indices
+v1 = TensorF64([1.0, 2.0, 3.0], (3,))
+v2 = TensorF64([4.0, 5.0, 6.0], (3,))
+result = contract(v1, (-1,), v2, (-1,))
+# result[1] = 1*4 + 2*5 + 3*6 = 32
+```
+"""
+function contract(a::TensorF64, labels_a, b::TensorF64, labels_b)
+    nd_a = ndims(a)
+    nd_b = ndims(b)
+
+    if length(labels_a) != nd_a
+        throw(ArgumentError("labels_a must have length $(nd_a), got $(length(labels_a))"))
+    end
+    if length(labels_b) != nd_b
+        throw(ArgumentError("labels_b must have length $(nd_b), got $(length(labels_b))"))
+    end
+
+    labels_a_arr = collect(Clong, labels_a)
+    labels_b_arr = collect(Clong, labels_b)
+    status = Ref{Cint}(-999)
+
+    ptr = ccall(
+        (:ndt_tensor_f64_contract, libpath),
+        Ptr{Cvoid},
+        (Ptr{Cvoid}, Ptr{Clong}, Csize_t, Ptr{Cvoid}, Ptr{Clong}, Csize_t, Ptr{Cint}),
+        a.ptr, labels_a_arr, nd_a, b.ptr, labels_b_arr, nd_b, status
+    )
+
+    if status[] == NDT_SHAPE_MISMATCH
+        throw(DimensionMismatch("contracted dimensions must have matching sizes"))
+    elseif status[] != NDT_SUCCESS
+        error("Failed to contract tensors: status = $(status[])")
+    end
+
+    TensorF64(ptr)
 end
 
 end # module

@@ -20,12 +20,14 @@
 //! let t2 = Tensor::from_vec(data, &[2, 3]).unwrap();
 //! ```
 
+pub mod contract;
 pub mod error;
 pub mod scalar;
 pub mod storage;
 pub mod strides;
 pub mod tensor;
 
+pub use contract::contract;
 pub use error::TensorError;
 pub use scalar::{Scalar, c64};
 pub use storage::Dense;

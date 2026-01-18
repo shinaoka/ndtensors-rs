@@ -192,6 +192,56 @@ pub struct Dense<T: Scalar> {
 
 This matches NDTensors.jl. The shape comes from the Tensor wrapper, not storage.
 
+### Memory Copy Behavior (AliasStyle)
+
+NDTensors.jl uses `AliasStyle` to control whether data is copied during tensor construction:
+
+```julia
+# Two construction patterns:
+tensor(storage, inds)   # AllowAlias - NO copy (zero-copy)
+Tensor(storage, inds)   # NeverAlias - COPIES data
+
+# AliasStyle types:
+AllowAlias()   # Store reference directly (zero-copy)
+NeverAlias()   # Copy storage before storing
+```
+
+#### Source References
+
+**Dense constructor** (`dense/dense.jl:65-72`):
+```julia
+function Dense(data::AbstractVector)
+  return Dense{eltype(data)}(data)  # NO copy
+end
+
+function Dense(data::DataT) where {DataT<:AbstractArray{<:Any,N}} where {N}
+  return Dense(vec(data))  # vec() returns a view, NO copy
+end
+```
+
+**Tensor constructor** (`tensor/tensor.jl:86-88`):
+```julia
+tensor(args...; kwargs...) = Tensor(AllowAlias(), args...; kwargs...)  # NO copy
+Tensor(storage::TensorStorage, inds::Tuple) = Tensor(NeverAlias(), storage, inds)  # COPIES
+```
+
+#### Copy Behavior Summary
+
+| Function | Copies Data? | Notes |
+|----------|--------------|-------|
+| `tensor(storage, inds)` | **NO** | Uses AllowAlias |
+| `Tensor(storage, inds)` | **YES** | Uses NeverAlias (default) |
+| `Dense(vec)` | **NO** | Direct storage |
+| `Dense(matrix)` | **NO** | `vec()` returns view |
+
+#### ndtensors-rs Implications
+
+For C API interop with Julia:
+1. **Julia → Rust**: Julia can pass pointer to its Array, Rust wraps without copy
+2. **Rust → Julia**: Rust exposes pointer, Julia wraps with `unsafe_wrap`
+
+The key is that `Dense` storage is just a flat vector wrapper - no implicit copying.
+
 ### Dispatch Hierarchy
 
 #### permutedims Dispatch Chain
@@ -779,6 +829,37 @@ impl TensorWithGrad<f64> {
 
 For seamless AD interop with Julia's ecosystem (Zygote.jl, Enzyme.jl, etc.), ndtensors-rs can expose ChainRules-compatible interfaces.
 
+### The C-API Boundary Problem
+
+**Key insight: C-API calls break automatic differentiation tracking.**
+
+```
+Julia AD (Zygote, etc.):
+  x (tracked) → [C API boundary] → Rust computation → [C API boundary] → y (untracked!)
+                     ↑
+              AD tape/graph is cut here
+```
+
+**Why AD doesn't work across C-API:**
+
+1. **Tape-based AD (Zygote, ReverseDiff)**: The computation graph only records Julia operations. Rust operations inside the C call are invisible to the tape.
+
+2. **Source-to-source AD (Enzyme)**: Enzyme analyzes LLVM IR, but pre-compiled Rust binaries are opaque - it cannot see inside `ccall`.
+
+**Solution: Manual rrule/frule definitions**
+
+This is the same approach used by:
+- PyTorch: `torch.autograd.Function` with custom `forward`/`backward`
+- JAX: `jax.custom_vjp` / `jax.custom_jvp`
+- Current ITensors.jl: ChainRules extension for ITensor operations
+
+The pattern:
+1. **Rust provides**: forward computation + separate VJP/JVP functions
+2. **Julia provides**: ChainRules definitions that wire them together
+3. **Result**: Julia's AD framework sees the operation as differentiable
+
+**Implication**: Rust does NOT need internal tape/autograd machinery. The host language (Julia/Python) handles the computation graph; Rust just provides the mathematical derivatives.
+
 ### Architecture
 
 ```
@@ -858,6 +939,93 @@ pub extern "C" fn ndtensor_contract_jvp(
 - **Enzyme.jl compatibility**: Works with Enzyme's source-to-source AD
 - **Composability**: ndtensors-rs operations compose with other Julia AD-enabled code
 - **Single implementation**: AD rules implemented once in Rust, used everywhere
+
+---
+
+## Native Rust AD Options
+
+When using ndtensors-rs as a pure Rust crate (not via C-API), there are additional AD options.
+
+### Option 1: Manual VJP/JVP Functions (Recommended)
+
+Always provide explicit derivative functions:
+
+```rust
+// Core primitives - always available
+pub fn contract_vjp<T: Scalar>(
+    a: &DenseTensor<T>, b: &DenseTensor<T>, grad_c: &DenseTensor<T>
+) -> (DenseTensor<T>, DenseTensor<T>);
+
+pub fn contract_jvp<T: Scalar>(
+    a: &DenseTensor<T>, b: &DenseTensor<T>,
+    tangent_a: &DenseTensor<T>, tangent_b: &DenseTensor<T>
+) -> DenseTensor<T>;
+```
+
+These can be used by any AD framework (host language or Rust).
+
+### Option 2: Tape-based Autograd (Cargo Feature)
+
+PyTorch-style tape-based reverse-mode AD:
+
+```rust
+#[cfg(feature = "autograd")]
+pub struct TrackedTensor<T> {
+    tensor: DenseTensor<T>,
+    grad: Option<DenseTensor<T>>,
+    grad_fn: Option<Box<dyn GradFn<T>>>,
+    requires_grad: bool,
+}
+```
+
+**Pros**: Pure Rust, no external dependencies, stable
+**Cons**: Manual backward implementation for each operation
+
+### Option 3: Enzyme (Experimental, Nightly Only)
+
+[Enzyme](https://enzyme.mit.edu/) performs source-to-source AD at LLVM IR level.
+
+```rust
+#![feature(autodiff)]
+use std::autodiff::autodiff;
+
+#[autodiff(d_contract, Reverse, Duplicated, Duplicated, Active)]
+fn contract_scalar(a: &DenseTensor<f64>, b: &DenseTensor<f64>) -> f64 {
+    // ...
+}
+// d_contract is auto-generated
+```
+
+**Status (as of late 2025)**:
+- Requires Rust nightly with `#![feature(autodiff)]`
+- Requires `lto = "fat"` in Cargo.toml (slower compilation)
+- [rlibs now supported](https://github.com/rust-lang/rust/pull/129176) - can differentiate through dependencies
+- [GSoC 2025](https://blog.karanjanthe.me/posts/enzyme-autodiff-rust-gsoc/) improved TypeTree handling
+
+**Constraints**:
+- Complex types (`Vec<T>`, custom structs) may cause type inference failures
+- Not production-ready yet
+
+### AD Strategy Summary
+
+```
+┌─────────────────────────────────────────────────────┐
+│  ndtensors-rs AD Architecture                       │
+│                                                      │
+│  Layer 1: VJP/JVP primitives (always available)     │
+│    contract_vjp(), permutedims_vjp(), svd_vjp()...  │
+│                                                      │
+│  Layer 2: Host language integration (via C-API)     │
+│    - Julia: ChainRules.jl rrule/frule               │
+│    - Python: JAX custom_vjp / PyTorch Function      │
+│                                                      │
+│  Layer 3: Native Rust AD (cargo features)           │
+│    - feature = "autograd" → tape-based (stable)     │
+│    - feature = "enzyme"   → Enzyme (nightly only)   │
+└─────────────────────────────────────────────────────┘
+```
+
+**Recommendation**: Build on VJP/JVP primitives. Host language AD delegation is the primary path. Native Rust AD is optional for pure-Rust users.
 
 ---
 

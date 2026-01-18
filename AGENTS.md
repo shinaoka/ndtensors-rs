@@ -2,8 +2,7 @@
 
 Read before starting work:
 - `README.md` - Project overview
-- `docs/design.md` - Design decisions and rationale
-- `docs/ndtensors_architecture.md` - NDTensors.jl structure reference (critical for compatibility)
+- `docs/design.md` - Design decisions, NDTensors.jl architecture reference, and migration checklist
 
 ## Core Principle: NDTensors.jl Compatibility
 
@@ -14,7 +13,7 @@ For this to be meaningful:
 - **Dispatch hierarchy must match** (High-level API → Storage-specific → Backend)
 - **Module organization should parallel Julia's** for easy comparison
 
-See `docs/ndtensors_architecture.md` for detailed mapping.
+See "NDTensors.jl Architecture Reference" section in `docs/design.md` for detailed mapping.
 
 **Rationale**: Without structural compatibility, migration from Julia to Rust backend becomes impractical, defeating the project's purpose.
 

@@ -1,19 +1,36 @@
-//! Dense n-dimensional tensor type.
+//! N-dimensional tensor type with polymorphic storage.
+//!
+//! Following NDTensors.jl's design:
+//! ```text
+//! Tensor{ElT, N, StoreT<:TensorStorage, IndsT}
+//! ├── DenseTensor   = Tensor where StoreT<:Dense
+//! ├── DiagTensor    = Tensor where StoreT<:Diag (future)
+//! └── BlockSparseTensor = Tensor where StoreT<:BlockSparse (future)
+//! ```
 
 use crate::error::TensorError;
 use crate::scalar::Scalar;
-use crate::storage::Dense;
+use crate::storage::{Dense, TensorStorage};
 use crate::strides::{cartesian_to_linear, compute_strides};
+use std::marker::PhantomData;
 
-/// A dense n-dimensional tensor with column-major storage.
+/// A n-dimensional tensor with polymorphic storage.
+///
+/// This mirrors NDTensors.jl's `Tensor{ElT, N, StoreT, IndsT}`.
+/// The storage type `S` determines the storage layout (Dense, Diag, etc.).
 #[derive(Debug, Clone, PartialEq)]
-pub struct Tensor<T: Scalar> {
-    storage: Dense<T>,
+pub struct Tensor<T: Scalar, S: TensorStorage<T> = Dense<T>> {
+    storage: S,
     shape: Vec<usize>,
     strides: Vec<usize>,
+    _phantom: PhantomData<T>,
 }
 
-impl<T: Scalar> Tensor<T> {
+/// Type alias for dense tensors (most common case).
+/// Matches NDTensors.jl's `DenseTensor = Tensor where StoreT<:Dense`.
+pub type DenseTensor<T> = Tensor<T, Dense<T>>;
+
+impl<T: Scalar, S: TensorStorage<T>> Tensor<T, S> {
     /// Create a new tensor with the given shape, zero-initialized.
     ///
     /// # Examples
@@ -29,9 +46,10 @@ impl<T: Scalar> Tensor<T> {
         let strides = compute_strides(shape);
         let len: usize = shape.iter().product();
         Self {
-            storage: Dense::zeros(len.max(1)), // At least 1 for scalar (empty shape)
+            storage: S::zeros(len.max(1)), // At least 1 for scalar (empty shape)
             shape: shape.to_vec(),
             strides,
+            _phantom: PhantomData,
         }
     }
 
@@ -46,9 +64,9 @@ impl<T: Scalar> Tensor<T> {
     /// # Examples
     ///
     /// ```
-    /// use ndtensors::Tensor;
+    /// use ndtensors::{DenseTensor, Tensor};
     ///
-    /// let t = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]).unwrap();
+    /// let t: DenseTensor<f64> = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]).unwrap();
     /// assert_eq!(t.shape(), &[2, 3]);
     /// assert_eq!(t.get(&[0, 0]), Some(&1.0));
     /// assert_eq!(t.get(&[1, 0]), Some(&2.0)); // Column-major: [1,0] is second element
@@ -64,9 +82,10 @@ impl<T: Scalar> Tensor<T> {
         }
         let strides = compute_strides(shape);
         Ok(Self {
-            storage: Dense::from_vec(data),
+            storage: S::from_vec(data),
             shape: shape.to_vec(),
             strides,
+            _phantom: PhantomData,
         })
     }
 
@@ -177,7 +196,7 @@ impl<T: Scalar> Tensor<T> {
             }
         }
         let linear = cartesian_to_linear(indices, &self.strides);
-        self.storage[linear] = value;
+        self.storage.as_mut_slice()[linear] = value;
         Ok(())
     }
 
@@ -194,7 +213,11 @@ impl<T: Scalar> Tensor<T> {
         t.fill(T::one());
         t
     }
+}
 
+// DenseTensor-specific operations
+// Following NDTensors.jl's dispatch pattern where operations are specialized by storage type
+impl<T: Scalar> Tensor<T, Dense<T>> {
     /// Permute the dimensions of the tensor.
     ///
     /// # Arguments
@@ -224,58 +247,8 @@ impl<T: Scalar> Tensor<T> {
     /// assert_eq!(t.get(&[0, 2]), t2.get(&[2, 0]));
     /// ```
     pub fn permutedims(&self, perm: &[usize]) -> Result<Self, TensorError> {
-        // Validate permutation
-        if perm.len() != self.ndim() {
-            return Err(TensorError::InvalidPermutation {
-                perm: perm.to_vec(),
-                ndim: self.ndim(),
-            });
-        }
-
-        let mut seen = vec![false; self.ndim()];
-        for &p in perm {
-            if p >= self.ndim() {
-                return Err(TensorError::InvalidPermutation {
-                    perm: perm.to_vec(),
-                    ndim: self.ndim(),
-                });
-            }
-            if seen[p] {
-                return Err(TensorError::InvalidPermutation {
-                    perm: perm.to_vec(),
-                    ndim: self.ndim(),
-                });
-            }
-            seen[p] = true;
-        }
-
-        // Compute new shape
-        let new_shape: Vec<usize> = perm.iter().map(|&p| self.shape[p]).collect();
-
-        // Create output tensor
-        let mut result = Self::zeros(&new_shape);
-
-        // Copy data with permutation
-        let old_shape = &self.shape;
-        let new_strides = &result.strides;
-
-        // Iterate over all elements
-        let total = self.len();
-        for linear_old in 0..total {
-            // Convert to old cartesian indices
-            let old_indices = crate::strides::linear_to_cartesian(linear_old, old_shape);
-
-            // Permute to new indices: new_indices[i] = old_indices[perm[i]]
-            let new_indices: Vec<usize> = perm.iter().map(|&p| old_indices[p]).collect();
-
-            // Convert to new linear index
-            let linear_new = cartesian_to_linear(&new_indices, new_strides);
-
-            // Copy value
-            result.storage[linear_new] = self.storage[linear_old];
-        }
-
-        Ok(result)
+        // Delegate to operations module (DenseTensor specialization)
+        crate::operations::permutedims(self, perm)
     }
 }
 
@@ -308,7 +281,7 @@ mod tests {
     #[test]
     fn test_from_vec() {
         let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let t = Tensor::from_vec(data, &[2, 3]).unwrap();
+        let t: DenseTensor<f64> = Tensor::from_vec(data, &[2, 3]).unwrap();
 
         // Column-major order: data laid out as columns
         // [1, 2] [3, 4] [5, 6] -> stored as [1, 2, 3, 4, 5, 6]
@@ -323,7 +296,7 @@ mod tests {
     #[test]
     fn test_from_vec_shape_mismatch() {
         let data = vec![1.0, 2.0, 3.0];
-        let result = Tensor::from_vec(data, &[2, 3]);
+        let result = Tensor::<f64>::from_vec(data, &[2, 3]);
         assert!(result.is_err());
     }
 
@@ -371,7 +344,7 @@ mod tests {
 
     #[test]
     fn test_1d_tensor() {
-        let t = Tensor::from_vec(vec![1.0, 2.0, 3.0], &[3]).unwrap();
+        let t: DenseTensor<f64> = Tensor::from_vec(vec![1.0, 2.0, 3.0], &[3]).unwrap();
         assert_eq!(t.get(&[0]), Some(&1.0));
         assert_eq!(t.get(&[1]), Some(&2.0));
         assert_eq!(t.get(&[2]), Some(&3.0));
@@ -452,5 +425,12 @@ mod tests {
 
         // Duplicate index
         assert!(t.permutedims(&[0, 0]).is_err());
+    }
+
+    #[test]
+    fn test_dense_tensor_alias() {
+        // Verify DenseTensor alias works
+        let t: DenseTensor<f64> = DenseTensor::zeros(&[2, 3]);
+        assert_eq!(t.shape(), &[2, 3]);
     }
 }

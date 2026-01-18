@@ -1,6 +1,9 @@
 # Agent Guidelines for ndtensors-rs
 
-Read `README.md` and `docs/design.md` before starting work.
+Read before starting work:
+- `README.md` - Project overview
+- `docs/design.md` - Design decisions and rationale
+- `docs/ndtensors_architecture.md` - NDTensors.jl structure reference (critical for compatibility)
 
 ## Core Principle: NDTensors.jl Compatibility
 

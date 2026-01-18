@@ -2,6 +2,19 @@
 
 Read `README.md` and `docs/design.md` before starting work.
 
+## Core Principle: NDTensors.jl Compatibility
+
+**This project is a technical feasibility study for replacing NDTensors.jl's backend with Rust.**
+
+For this to be meaningful:
+- **Data structures must mirror NDTensors.jl** (Storage trait hierarchy, Tensor wrapper, etc.)
+- **Dispatch hierarchy must match** (High-level API → Storage-specific → Backend)
+- **Module organization should parallel Julia's** for easy comparison
+
+See `docs/ndtensors_architecture.md` for detailed mapping.
+
+**Rationale**: Without structural compatibility, migration from Julia to Rust backend becomes impractical, defeating the project's purpose.
+
 ## Development Stage
 
 **Early development** - no backward compatibility required. Remove deprecated code immediately.

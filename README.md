@@ -25,6 +25,18 @@ Target:
 - Automatic differentiation integration (ChainRules.jl)
 - Performance parity with pure Julia implementation
 
+## NDTensors.jl Correspondence
+
+| NDTensors.jl | ndtensors-rs | Notes |
+|--------------|--------------|-------|
+| `TensorStorage{ElT}` | `TensorStorage<T>` trait | Storage abstraction |
+| `Dense{ElT, DataT}` | `Dense<T>` | Dense storage type |
+| `Tensor{ElT,N,StoreT,IndsT}` | `Tensor<T, S>` | Generic tensor |
+| `DenseTensor` type alias | `DenseTensor<T>` type alias | `Tensor<T, Dense<T>>` |
+| Storage-specific dispatch | `impl<T> Tensor<T, Dense<T>>` | Methods on specific storage |
+| `permutedims` | `permutedims` | Dimension permutation |
+| `contract` | `contract` | Tensor contraction |
+
 ## Design Document
 
 See [docs/design.md](docs/design.md) for technical details.

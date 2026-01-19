@@ -70,6 +70,9 @@ pub mod storage;
 pub mod strides;
 pub mod tensor;
 
+#[cfg(feature = "autodiff")]
+pub mod autodiff;
+
 pub use blocksparse_tensor::{BlockSparseTensor, CpuBlockSparseTensor};
 pub use combiner_tensor::CombinerTensor;
 pub use contract::{contract, contract_blocksparse, contract_vjp};

@@ -37,4 +37,16 @@ pub enum TensorError {
         dim: usize,
         size: usize,
     },
+
+    /// Polar decomposition error.
+    #[error("polar decomposition error: {message}")]
+    PolarError { message: String },
+
+    /// Matrix exponential error.
+    #[error("matrix exponential error: {message}")]
+    MatrixExpError { message: String },
+
+    /// Matrix must be square.
+    #[error("matrix must be square: got {rows}x{cols}")]
+    NotSquareMatrix { rows: usize, cols: usize },
 }

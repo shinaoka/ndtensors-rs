@@ -9,11 +9,25 @@ pub use faer::c64;
 pub trait RealScalar: Scalar + std::ops::Add<Output = Self> {
     /// Square root.
     fn sqrt(self) -> Self;
+
+    /// Exponential function.
+    fn exp(self) -> Self;
+
+    /// Convert to f64.
+    fn to_f64(self) -> f64;
 }
 
 impl RealScalar for f64 {
     fn sqrt(self) -> Self {
         f64::sqrt(self)
+    }
+
+    fn exp(self) -> Self {
+        f64::exp(self)
+    }
+
+    fn to_f64(self) -> f64 {
+        self
     }
 }
 

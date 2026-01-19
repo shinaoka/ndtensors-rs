@@ -273,6 +273,75 @@ data = unsafe_wrap(Array, unsafe_data(c), length(c))
 - Automatic differentiation integration (ChainRules.jl)
 - Performance parity with pure Julia implementation
 
+## Future: CUDA.jl Integration
+
+To support GPU tensors via CUDA.jl, the C API needs to accept CUDA device pointers directly from Julia.
+
+### CUDA.jl Pointer Access
+
+CUDA.jl provides the following methods to obtain device pointers from `CuArray`:
+
+```julia
+# Get CuPtr{T} (CUDA device pointer) from CuArray
+ptr = pointer(cuarray)                           # CuPtr{T}
+ptr = Base.unsafe_convert(CuPtr{T}, cuarray)     # CuPtr{T}
+
+# Wrap existing CuPtr as CuArray (zero-copy)
+cuarray = unsafe_wrap(CuArray, ptr, dims; own=false)
+```
+
+### Required C API Extensions
+
+For GPU support, ndtensors-rs needs new C API functions that:
+
+1. **Accept CUDA device pointers**: Create tensors from `CuPtr` without copying data to CPU
+2. **Return CUDA device pointers**: Allow Julia to wrap results as `CuArray`
+3. **Specify memory location**: Distinguish between CPU (`Ptr`) and GPU (`CuPtr`) memory
+
+```rust
+// Proposed C API for GPU tensors
+#[no_mangle]
+pub extern "C" fn ndt_tensor_f64_from_cuda_ptr(
+    cuda_ptr: *mut c_double,  // CuPtr from Julia
+    len: size_t,
+    shape: *const size_t,
+    ndim: size_t,
+    status: *mut StatusCode,
+) -> *mut ndt_tensor_f64_cuda;
+
+#[no_mangle]
+pub extern "C" fn ndt_tensor_f64_cuda_ptr(
+    tensor: *const ndt_tensor_f64_cuda,
+) -> *mut c_double;  // Returns CuPtr for Julia to wrap
+```
+
+### Julia Integration Pattern
+
+```julia
+using CUDA, NDTensorsRS
+
+# Create CuArray in Julia
+cu_data = CUDA.rand(Float64, 2, 3)
+
+# Pass device pointer to Rust (zero-copy)
+ptr = pointer(cu_data)  # CuPtr{Float64}
+rust_tensor = NDTensorsRS.from_cuda_ptr(ptr, size(cu_data))
+
+# Operations run on GPU via Rust
+result = contract(rust_tensor, ...)
+
+# Get result back as CuArray (zero-copy)
+result_ptr = NDTensorsRS.cuda_ptr(result)
+result_cuarray = unsafe_wrap(CuArray, result_ptr, size(result))
+```
+
+### Implementation Notes
+
+- Rust side needs CUDA runtime bindings (e.g., `cudarc` crate) to work with device memory
+- Memory ownership must be clearly defined (Julia owns CuArray, Rust borrows the pointer)
+- Synchronization between CUDA streams may be required before/after Rust operations
+- Consider using `cuBLAS` for GPU GEMM operations instead of faer (CPU-only)
+
 ## Design Document
 
 See [docs/design.md](docs/design.md) for technical details.

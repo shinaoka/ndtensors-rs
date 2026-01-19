@@ -17,20 +17,20 @@ use std::marker::PhantomData;
 /// A n-dimensional tensor with polymorphic storage.
 ///
 /// This mirrors NDTensors.jl's `Tensor{ElT, N, StoreT, IndsT}`.
-/// The storage type `S` determines the storage layout (Dense, Diag, etc.).
+/// The storage type `StoreT` determines the storage layout (Dense, Diag, etc.).
 #[derive(Debug, Clone, PartialEq)]
-pub struct Tensor<T: Scalar, S: TensorStorage<T> = Dense<T>> {
-    storage: S,
+pub struct Tensor<ElT: Scalar, StoreT: TensorStorage<ElT> = Dense<ElT>> {
+    storage: StoreT,
     shape: Vec<usize>,
     strides: Vec<usize>,
-    _phantom: PhantomData<T>,
+    _phantom: PhantomData<ElT>,
 }
 
 /// Type alias for dense tensors (most common case).
 /// Matches NDTensors.jl's `DenseTensor = Tensor where StoreT<:Dense`.
-pub type DenseTensor<T> = Tensor<T, Dense<T>>;
+pub type DenseTensor<ElT> = Tensor<ElT, Dense<ElT>>;
 
-impl<T: Scalar, S: TensorStorage<T>> Tensor<T, S> {
+impl<ElT: Scalar, StoreT: TensorStorage<ElT>> Tensor<ElT, StoreT> {
     /// Create a new tensor with the given shape, zero-initialized.
     ///
     /// # Examples
@@ -46,7 +46,7 @@ impl<T: Scalar, S: TensorStorage<T>> Tensor<T, S> {
         let strides = compute_strides(shape);
         let len: usize = shape.iter().product();
         Self {
-            storage: S::zeros(len.max(1)), // At least 1 for scalar (empty shape)
+            storage: StoreT::zeros(len.max(1)), // At least 1 for scalar (empty shape)
             shape: shape.to_vec(),
             strides,
             _phantom: PhantomData,
@@ -72,7 +72,7 @@ impl<T: Scalar, S: TensorStorage<T>> Tensor<T, S> {
     /// assert_eq!(t.get(&[1, 0]), Some(&2.0)); // Column-major: [1,0] is second element
     /// assert_eq!(t.get(&[0, 1]), Some(&3.0)); // [0,1] is third element
     /// ```
-    pub fn from_vec(data: Vec<T>, shape: &[usize]) -> Result<Self, TensorError> {
+    pub fn from_vec(data: Vec<ElT>, shape: &[usize]) -> Result<Self, TensorError> {
         let expected_len: usize = shape.iter().product::<usize>().max(1);
         if data.len() != expected_len {
             return Err(TensorError::ShapeMismatch {
@@ -82,7 +82,7 @@ impl<T: Scalar, S: TensorStorage<T>> Tensor<T, S> {
         }
         let strides = compute_strides(shape);
         Ok(Self {
-            storage: S::from_vec(data),
+            storage: StoreT::from_vec(data),
             shape: shape.to_vec(),
             strides,
             _phantom: PhantomData,
@@ -121,32 +121,32 @@ impl<T: Scalar, S: TensorStorage<T>> Tensor<T, S> {
 
     /// Get underlying data as slice.
     #[inline]
-    pub fn data(&self) -> &[T] {
+    pub fn data(&self) -> &[ElT] {
         self.storage.as_slice()
     }
 
     /// Get underlying data as mutable slice.
     #[inline]
-    pub fn data_mut(&mut self) -> &mut [T] {
+    pub fn data_mut(&mut self) -> &mut [ElT] {
         self.storage.as_mut_slice()
     }
 
     /// Get element by linear index.
     #[inline]
-    pub fn get_linear(&self, i: usize) -> Option<&T> {
+    pub fn get_linear(&self, i: usize) -> Option<&ElT> {
         self.storage.as_slice().get(i)
     }
 
     /// Get mutable element by linear index.
     #[inline]
-    pub fn get_linear_mut(&mut self, i: usize) -> Option<&mut T> {
+    pub fn get_linear_mut(&mut self, i: usize) -> Option<&mut ElT> {
         self.storage.as_mut_slice().get_mut(i)
     }
 
     /// Get element by cartesian indices.
     ///
     /// Returns `None` if indices are out of bounds or wrong number of indices.
-    pub fn get(&self, indices: &[usize]) -> Option<&T> {
+    pub fn get(&self, indices: &[usize]) -> Option<&ElT> {
         if indices.len() != self.ndim() {
             return None;
         }
@@ -162,7 +162,7 @@ impl<T: Scalar, S: TensorStorage<T>> Tensor<T, S> {
     /// Get mutable element by cartesian indices.
     ///
     /// Returns `None` if indices are out of bounds or wrong number of indices.
-    pub fn get_mut(&mut self, indices: &[usize]) -> Option<&mut T> {
+    pub fn get_mut(&mut self, indices: &[usize]) -> Option<&mut ElT> {
         if indices.len() != self.ndim() {
             return None;
         }
@@ -180,7 +180,7 @@ impl<T: Scalar, S: TensorStorage<T>> Tensor<T, S> {
     /// # Errors
     ///
     /// Returns error if indices are out of bounds or wrong number of indices.
-    pub fn set(&mut self, indices: &[usize], value: T) -> Result<(), TensorError> {
+    pub fn set(&mut self, indices: &[usize], value: ElT) -> Result<(), TensorError> {
         if indices.len() != self.ndim() {
             return Err(TensorError::WrongNumberOfIndices {
                 expected: self.ndim(),
@@ -201,7 +201,7 @@ impl<T: Scalar, S: TensorStorage<T>> Tensor<T, S> {
     }
 
     /// Fill all elements with a value.
-    pub fn fill(&mut self, value: T) {
+    pub fn fill(&mut self, value: ElT) {
         for x in self.storage.as_mut_slice() {
             *x = value;
         }
@@ -210,14 +210,14 @@ impl<T: Scalar, S: TensorStorage<T>> Tensor<T, S> {
     /// Create a tensor filled with ones.
     pub fn ones(shape: &[usize]) -> Self {
         let mut t = Self::zeros(shape);
-        t.fill(T::one());
+        t.fill(ElT::one());
         t
     }
 }
 
 // DenseTensor-specific operations
 // Following NDTensors.jl's dispatch pattern where operations are specialized by storage type
-impl<T: Scalar> Tensor<T, Dense<T>> {
+impl<ElT: Scalar> Tensor<ElT, Dense<ElT>> {
     /// Permute the dimensions of the tensor.
     ///
     /// # Arguments

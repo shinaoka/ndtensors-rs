@@ -56,6 +56,7 @@
 //! ```
 
 pub mod backend;
+pub mod blocksparse_tensor;
 pub mod contract;
 pub mod decomposition;
 pub mod error;
@@ -66,6 +67,7 @@ pub mod storage;
 pub mod strides;
 pub mod tensor;
 
+pub use blocksparse_tensor::{BlockSparseTensor, CpuBlockSparseTensor};
 pub use contract::{contract, contract_vjp};
 pub use error::TensorError;
 pub use scalar::{Scalar, c64};

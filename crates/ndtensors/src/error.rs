@@ -49,4 +49,8 @@ pub enum TensorError {
     /// Matrix must be square.
     #[error("matrix must be square: got {rows}x{cols}")]
     NotSquareMatrix { rows: usize, cols: usize },
+
+    /// Block not found in block-sparse tensor.
+    #[error("block {block:?} not found in tensor")]
+    BlockNotFound { block: Vec<usize> },
 }

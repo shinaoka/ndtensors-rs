@@ -20,4 +20,8 @@ pub enum TensorError {
     /// Invalid permutation.
     #[error("invalid permutation {perm:?} for tensor with {ndim} dimensions")]
     InvalidPermutation { perm: Vec<usize>, ndim: usize },
+
+    /// SVD computation error.
+    #[error("SVD error: {message}")]
+    SvdError { message: String },
 }

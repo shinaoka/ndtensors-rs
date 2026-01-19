@@ -57,6 +57,7 @@
 
 pub mod backend;
 pub mod contract;
+pub mod decomposition;
 pub mod error;
 pub mod operations;
 pub mod scalar;
@@ -67,5 +68,5 @@ pub mod tensor;
 pub use contract::{contract, contract_vjp};
 pub use error::TensorError;
 pub use scalar::{Scalar, c64};
-pub use storage::{Dense, TensorStorage};
+pub use storage::{CpuBuffer, CpuDense, DataBuffer, Dense, TensorStorage};
 pub use tensor::{DenseTensor, Tensor};

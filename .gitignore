@@ -9,6 +9,11 @@ Cargo.lock
 *.jl.mem
 Manifest.toml
 
+# shared lib
+*.so
+*.dylib
+*.dll
+
 # IDE
 .idea/
 .vscode/

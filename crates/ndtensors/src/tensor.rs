@@ -323,6 +323,23 @@ impl<ElT: Scalar> Tensor<ElT, Dense<ElT>> {
         // Delegate to operations module (DenseTensor specialization)
         crate::operations::permutedims(self, perm)
     }
+
+    /// Convert tensor to a flat Vec (column-major order).
+    ///
+    /// Returns a copy of the underlying data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ndtensors::Tensor;
+    ///
+    /// let t = Tensor::from_vec(vec![1.0, 2.0, 3.0], &[3]).unwrap();
+    /// let v = t.to_vec();
+    /// assert_eq!(v, vec![1.0, 2.0, 3.0]);
+    /// ```
+    pub fn to_vec(&self) -> Vec<ElT> {
+        self.data().to_vec()
+    }
 }
 
 #[cfg(test)]

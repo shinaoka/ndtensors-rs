@@ -29,11 +29,11 @@ Target:
 
 | NDTensors.jl | ndtensors-rs | Notes |
 |--------------|--------------|-------|
-| `TensorStorage{ElT}` | `TensorStorage<T>` trait | Storage abstraction |
-| `Dense{ElT, DataT}` | `Dense<T>` | Dense storage type |
-| `Tensor{ElT,N,StoreT,IndsT}` | `Tensor<T, S>` | Generic tensor |
-| `DenseTensor` type alias | `DenseTensor<T>` type alias | `Tensor<T, Dense<T>>` |
-| Storage-specific dispatch | `impl<T> Tensor<T, Dense<T>>` | Methods on specific storage |
+| `TensorStorage{ElT}` | `TensorStorage<ElT>` trait | Storage abstraction |
+| `Dense{ElT, DataT}` | `Dense<ElT>` | Dense storage type |
+| `Tensor{ElT,N,StoreT,IndsT}` | `Tensor<ElT, StoreT>` | Generic tensor |
+| `DenseTensor` type alias | `DenseTensor<ElT>` type alias | `Tensor<ElT, Dense<ElT>>` |
+| Storage-specific dispatch | `impl<ElT> Tensor<ElT, Dense<ElT>>` | Methods on specific storage |
 | `permutedims` | `permutedims` | Dimension permutation |
 | `contract` | `contract` | Tensor contraction |
 

@@ -7,7 +7,8 @@
 //! # Available Decompositions
 //!
 //! - [`svd`] / [`svd_truncated`]: Singular Value Decomposition
-//! - [`qr`]: QR Decomposition
+//! - [`qr`] / [`qr_positive`]: QR Decomposition (with optional positive diagonal)
+//! - [`ql`] / [`ql_positive`]: QL Decomposition (with optional positive diagonal)
 //! - [`polar`]: Polar Decomposition (A = U * P)
 //! - [`matrix_exp`]: Matrix Exponential
 //!
@@ -24,7 +25,7 @@
 //!
 //! ```
 //! use ndtensors::Tensor;
-//! use ndtensors::decomposition::{svd, qr};
+//! use ndtensors::decomposition::{svd, qr, ql};
 //!
 //! // 3D tensor
 //! let t = Tensor::<f64>::ones(&[2, 3, 4]);
@@ -35,16 +36,23 @@
 //!
 //! // QR with same indices
 //! let qr_result = qr(&t, &[0, 1], &[2]).unwrap();
+//!
+//! // QL decomposition
+//! let ql_result = ql(&t, &[0, 1], &[2]).unwrap();
 //! ```
 
 mod exp;
 mod polar;
+mod positive;
+mod ql;
 mod qr;
 mod svd;
 mod util;
 
 pub use exp::matrix_exp;
 pub use polar::{PolarResult, polar};
+pub use positive::{ql_positive, qr_positive};
+pub use ql::{QlResult, ql};
 pub use qr::{QrResult, qr};
 pub use svd::{SvdResult, svd, svd_truncated};
 pub use util::{PermuteReshapeResult, permute_reshape};

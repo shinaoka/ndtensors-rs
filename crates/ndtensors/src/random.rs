@@ -1,11 +1,14 @@
 //! Random tensor construction.
 //!
-//! This module provides functions for creating tensors with random values.
+//! This module provides functions for creating tensors with random values,
+//! including random orthogonal and unitary matrices.
 
+use faer::linalg::solvers::Qr;
 use rand::Rng;
 use rand::distr::StandardUniform;
 use rand_distr::StandardNormal;
 
+use crate::backend::AsFaerMat;
 use crate::scalar::{Scalar, c64};
 use crate::storage::Dense;
 use crate::tensor::Tensor;
@@ -133,6 +136,189 @@ impl<ElT: Scalar + RandomNormal> Tensor<ElT, Dense<ElT>> {
         let data: Vec<ElT> = (0..len).map(|_| ElT::sample_normal(rng)).collect();
         Self::from_vec(data, shape).expect("shape and data length should match")
     }
+}
+
+/// Generate a random orthogonal matrix of shape (n, m).
+///
+/// If n >= m, returns Q such that Q^T * Q = I_m (columns are orthonormal).
+/// If n < m, returns Q such that Q * Q^T = I_n (rows are orthonormal).
+///
+/// Uses QR decomposition of a random normal matrix, following the approach
+/// from NDTensors.jl based on <https://arxiv.org/abs/math-ph/0609050>.
+/// The diagonal of R is made non-negative to ensure uniqueness.
+///
+/// # Example
+///
+/// ```
+/// use ndtensors::random::random_orthog;
+/// use approx::assert_relative_eq;
+///
+/// let (n, m) = (10, 4);
+/// let o = random_orthog(n, m);
+///
+/// // Check O^T * O ≈ I_m
+/// assert_eq!(o.shape(), &[n, m]);
+/// for i in 0..m {
+///     for j in 0..m {
+///         let mut sum = 0.0;
+///         for k in 0..n {
+///             sum += o.get(&[k, i]).unwrap() * o.get(&[k, j]).unwrap();
+///         }
+///         let expected = if i == j { 1.0 } else { 0.0 };
+///         assert_relative_eq!(sum, expected, epsilon = 1e-10);
+///     }
+/// }
+/// ```
+pub fn random_orthog(n: usize, m: usize) -> Tensor<f64, Dense<f64>> {
+    random_orthog_with_rng(n, m, &mut rand::rng())
+}
+
+/// Generate a random orthogonal matrix with a specific RNG.
+///
+/// See [`random_orthog`] for details.
+pub fn random_orthog_with_rng<R: Rng>(n: usize, m: usize, rng: &mut R) -> Tensor<f64, Dense<f64>> {
+    if n < m {
+        // Return transpose of random_orthog(m, n)
+        let q = random_orthog_with_rng(m, n, rng);
+        // Transpose: swap dimensions and reorder data
+        let mut transposed = vec![0.0; m * n];
+        for i in 0..m {
+            for j in 0..n {
+                // Original is column-major: element (i, j) at index i + j*m
+                // Transposed shape is (n, m), element (j, i) at index j + i*n
+                transposed[j + i * n] = *q.get(&[i, j]).unwrap();
+            }
+        }
+        return Tensor::from_vec(transposed, &[n, m]).unwrap();
+    }
+
+    // Generate random normal matrix
+    let randn: Tensor<f64, Dense<f64>> = Tensor::randn_with_rng(&[n, m], rng);
+
+    // Compute QR decomposition
+    let mat = randn.as_faer_mat(n, m);
+    let qr_result: Qr<f64> = Qr::new(mat);
+
+    let k = n.min(m);
+
+    // Get thin Q (n x k)
+    let q_mat = qr_result.compute_thin_Q();
+
+    // Get thin R to extract signs
+    let r_mat = qr_result.thin_R();
+
+    // Extract Q with sign correction to make R's diagonal non-negative
+    let mut q_data = Vec::with_capacity(n * k);
+    for j in 0..k {
+        let sign = r_mat[(j, j)].signum();
+        let sign = if sign == 0.0 { 1.0 } else { sign };
+        for i in 0..n {
+            q_data.push(q_mat[(i, j)] * sign);
+        }
+    }
+
+    Tensor::from_vec(q_data, &[n, k]).unwrap()
+}
+
+/// Generate a random unitary matrix of shape (n, m).
+///
+/// If n >= m, returns U such that U^H * U = I_m (columns are orthonormal).
+/// If n < m, returns U such that U * U^H = I_n (rows are orthonormal).
+///
+/// Uses QR decomposition of a random complex normal matrix, following the
+/// approach from NDTensors.jl based on <https://arxiv.org/abs/math-ph/0609050>.
+/// When n == m, the matrix is sampled according to the Haar measure.
+///
+/// # Example
+///
+/// ```
+/// use ndtensors::random::random_unitary;
+/// use ndtensors::c64;
+/// use approx::assert_relative_eq;
+///
+/// let (n, m) = (10, 4);
+/// let u = random_unitary(n, m);
+///
+/// // Check U^H * U ≈ I_m
+/// assert_eq!(u.shape(), &[n, m]);
+/// for i in 0..m {
+///     for j in 0..m {
+///         let mut sum = c64::new(0.0, 0.0);
+///         for k in 0..n {
+///             let u_ki = *u.get(&[k, i]).unwrap();
+///             let u_kj = *u.get(&[k, j]).unwrap();
+///             // U^H means conjugate transpose
+///             sum = c64::new(
+///                 sum.re + u_ki.re * u_kj.re + u_ki.im * u_kj.im,
+///                 sum.im + u_ki.re * u_kj.im - u_ki.im * u_kj.re,
+///             );
+///         }
+///         let expected_re = if i == j { 1.0 } else { 0.0 };
+///         assert_relative_eq!(sum.re, expected_re, epsilon = 1e-10);
+///         assert_relative_eq!(sum.im, 0.0, epsilon = 1e-10);
+///     }
+/// }
+/// ```
+pub fn random_unitary(n: usize, m: usize) -> Tensor<c64, Dense<c64>> {
+    random_unitary_with_rng(n, m, &mut rand::rng())
+}
+
+/// Generate a random unitary matrix with a specific RNG.
+///
+/// See [`random_unitary`] for details.
+pub fn random_unitary_with_rng<R: Rng>(n: usize, m: usize, rng: &mut R) -> Tensor<c64, Dense<c64>> {
+    if n < m {
+        // Return conjugate transpose of random_unitary(m, n)
+        let u = random_unitary_with_rng(m, n, rng);
+        // Conjugate transpose: swap dimensions and conjugate
+        let mut transposed = vec![c64::new(0.0, 0.0); m * n];
+        for i in 0..m {
+            for j in 0..n {
+                let val = *u.get(&[i, j]).unwrap();
+                // Conjugate: (a + bi)^* = a - bi
+                transposed[j + i * n] = c64::new(val.re, -val.im);
+            }
+        }
+        return Tensor::from_vec(transposed, &[n, m]).unwrap();
+    }
+
+    // Generate random complex normal matrix
+    let randn: Tensor<c64, Dense<c64>> = Tensor::randn_with_rng(&[n, m], rng);
+
+    // Compute QR decomposition
+    let mat = randn.as_faer_mat(n, m);
+    let qr_result: Qr<c64> = Qr::new(mat);
+
+    let k = n.min(m);
+
+    // Get thin Q (n x k)
+    let q_mat = qr_result.compute_thin_Q();
+
+    // Get thin R to extract signs
+    let r_mat = qr_result.thin_R();
+
+    // Extract Q with sign correction to make R's diagonal real and non-negative
+    let mut q_data = Vec::with_capacity(n * k);
+    for j in 0..k {
+        let r_jj = r_mat[(j, j)];
+        let abs_r = (r_jj.re * r_jj.re + r_jj.im * r_jj.im).sqrt();
+        // sign = r_jj / |r_jj| if |r_jj| > 0, else 1
+        let sign = if abs_r > 1e-14 {
+            c64::new(r_jj.re / abs_r, r_jj.im / abs_r)
+        } else {
+            c64::new(1.0, 0.0)
+        };
+        for i in 0..n {
+            let q_ij = q_mat[(i, j)];
+            // Multiply by sign: (a + bi) * (c + di) = (ac - bd) + (ad + bc)i
+            q_data.push(c64::new(
+                q_ij.re * sign.re - q_ij.im * sign.im,
+                q_ij.re * sign.im + q_ij.im * sign.re,
+            ));
+        }
+    }
+
+    Tensor::from_vec(q_data, &[n, k]).unwrap()
 }
 
 #[cfg(test)]

@@ -42,12 +42,12 @@ use std::ops::{Add, Mul};
 /// let c = contract(&a, &[1, -1], &b, &[-1, 2]).unwrap();
 /// assert_eq!(c.shape(), &[2, 4]);
 /// ```
-pub fn contract<T: Scalar + Add<Output = T> + Mul<Output = T>>(
-    a: &Tensor<T>,
+pub fn contract<ElT: Scalar + Add<Output = ElT> + Mul<Output = ElT>>(
+    a: &Tensor<ElT>,
     labels_a: &[i32],
-    b: &Tensor<T>,
+    b: &Tensor<ElT>,
     labels_b: &[i32],
-) -> Result<Tensor<T>, TensorError> {
+) -> Result<Tensor<ElT>, TensorError> {
     // Validate label lengths
     if labels_a.len() != a.ndim() {
         return Err(TensorError::WrongNumberOfIndices {
@@ -113,7 +113,7 @@ pub fn contract<T: Scalar + Add<Output = T> + Mul<Output = T>>(
         output_shape.push(1);
     }
 
-    let mut result = Tensor::<T>::zeros(&output_shape);
+    let mut result = Tensor::<ElT>::zeros(&output_shape);
 
     // Get contracted dimension sizes
     let contracted_dims: Vec<usize> = contracted_pairs
@@ -130,7 +130,7 @@ pub fn contract<T: Scalar + Add<Output = T> + Mul<Output = T>>(
     for out_linear in 0..output_total {
         let out_indices = linear_to_cartesian(out_linear, &output_shape);
 
-        let mut sum = T::zero();
+        let mut sum = ElT::zero();
 
         // Iterate over contracted indices
         for contracted_linear in 0..contracted_total {
@@ -219,13 +219,13 @@ pub fn contract<T: Scalar + Add<Output = T> + Mul<Output = T>>(
 /// assert_eq!(grad_a.shape(), &[2, 3]);
 /// assert_eq!(grad_b.shape(), &[3, 4]);
 /// ```
-pub fn contract_vjp<T: Scalar + Add<Output = T> + Mul<Output = T>>(
-    a: &Tensor<T>,
+pub fn contract_vjp<ElT: Scalar + Add<Output = ElT> + Mul<Output = ElT>>(
+    a: &Tensor<ElT>,
     labels_a: &[i32],
-    b: &Tensor<T>,
+    b: &Tensor<ElT>,
     labels_b: &[i32],
-    grad_output: &Tensor<T>,
-) -> Result<(Tensor<T>, Tensor<T>), TensorError> {
+    grad_output: &Tensor<ElT>,
+) -> Result<(Tensor<ElT>, Tensor<ElT>), TensorError> {
     // Validate label lengths
     if labels_a.len() != a.ndim() {
         return Err(TensorError::WrongNumberOfIndices {
@@ -316,7 +316,7 @@ pub fn contract_vjp<T: Scalar + Add<Output = T> + Mul<Output = T>>(
             // B's shape corresponds to those indices
 
             // Create result with B's values scaled by grad_output scalar
-            let result_data: Vec<T> = b.data().iter().map(|&v| v * scalar).collect();
+            let result_data: Vec<ElT> = b.data().iter().map(|&v| v * scalar).collect();
 
             // B and A might have different dimension orderings for the same contracted indices
             // Build mapping from B's order to A's order
@@ -418,7 +418,7 @@ pub fn contract_vjp<T: Scalar + Add<Output = T> + Mul<Output = T>>(
                 })?;
 
             // Create result with A's values scaled by grad_output scalar
-            let result_data: Vec<T> = a.data().iter().map(|&v| v * scalar).collect();
+            let result_data: Vec<ElT> = a.data().iter().map(|&v| v * scalar).collect();
 
             // A and B might have different dimension orderings for the same contracted indices
             let a_result = Tensor::from_vec(result_data.clone(), a.shape())?;

@@ -24,4 +24,17 @@ pub enum TensorError {
     /// SVD computation error.
     #[error("SVD error: {message}")]
     SvdError { message: String },
+
+    /// Operation requires specific tensor rank.
+    #[error("expected tensor of rank {expected}, got rank {actual}")]
+    RankMismatch { expected: usize, actual: usize },
+
+    /// Slice range out of bounds.
+    #[error("slice range {start}..{end} out of bounds for dimension {dim} with size {size}")]
+    SliceOutOfBounds {
+        start: usize,
+        end: usize,
+        dim: usize,
+        size: usize,
+    },
 }

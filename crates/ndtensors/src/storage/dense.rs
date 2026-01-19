@@ -99,6 +99,18 @@ impl<ElT: Scalar, D: DataBuffer<ElT>> Dense<ElT, D> {
     pub fn buffer_mut(&mut self) -> &mut D {
         &mut self.data
     }
+
+    /// Create a view of the same underlying data.
+    ///
+    /// This creates a new Dense that shares the same underlying storage
+    /// using reference counting. The data is not copied.
+    #[inline]
+    pub fn view(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<ElT: Scalar, D: DataBuffer<ElT>> std::ops::Index<usize> for Dense<ElT, D> {

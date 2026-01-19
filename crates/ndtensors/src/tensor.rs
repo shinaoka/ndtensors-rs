@@ -218,6 +218,79 @@ impl<ElT: Scalar, StoreT: TensorStorage<ElT>> Tensor<ElT, StoreT> {
 // DenseTensor-specific operations
 // Following NDTensors.jl's dispatch pattern where operations are specialized by storage type
 impl<ElT: Scalar> Tensor<ElT, Dense<ElT>> {
+    /// Reshape the tensor to a new shape (zero-copy view).
+    ///
+    /// Creates a new tensor that shares the same underlying storage.
+    /// The total number of elements must remain the same.
+    ///
+    /// # Arguments
+    ///
+    /// * `new_shape` - The new shape for the tensor
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the new shape, sharing the same underlying data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the total number of elements doesn't match.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ndtensors::Tensor;
+    ///
+    /// let t = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]).unwrap();
+    ///
+    /// // Reshape to 1D
+    /// let t1d = t.reshape(&[6]).unwrap();
+    /// assert_eq!(t1d.shape(), &[6]);
+    ///
+    /// // Reshape to 3x2
+    /// let t3x2 = t.reshape(&[3, 2]).unwrap();
+    /// assert_eq!(t3x2.shape(), &[3, 2]);
+    ///
+    /// // t, t1d, t3x2 share the same underlying data
+    /// assert!(t.shares_storage_with(&t1d));
+    /// assert!(t.shares_storage_with(&t3x2));
+    /// ```
+    pub fn reshape(&self, new_shape: &[usize]) -> Result<Self, TensorError> {
+        let current_len = self.len();
+        let new_len: usize = new_shape.iter().product::<usize>().max(1);
+
+        if current_len != new_len {
+            return Err(TensorError::ShapeMismatch {
+                expected: current_len,
+                actual: new_len,
+            });
+        }
+
+        let new_strides = compute_strides(new_shape);
+
+        Ok(Self {
+            storage: self.storage.view(),
+            shape: new_shape.to_vec(),
+            strides: new_strides,
+            _phantom: PhantomData,
+        })
+    }
+
+    /// Check if this tensor shares storage with another tensor.
+    ///
+    /// Returns `true` if both tensors point to the same underlying data.
+    pub fn shares_storage_with(&self, other: &Self) -> bool {
+        self.storage
+            .buffer()
+            .shares_storage_with(other.storage.buffer())
+    }
+
+    /// Check if this tensor's storage is shared with other tensors.
+    ///
+    /// Returns `true` if there are other views of this tensor's data.
+    pub fn is_view(&self) -> bool {
+        self.storage.buffer().is_shared()
+    }
+
     /// Permute the dimensions of the tensor.
     ///
     /// # Arguments
@@ -432,5 +505,96 @@ mod tests {
         // Verify DenseTensor alias works
         let t: DenseTensor<f64> = DenseTensor::zeros(&[2, 3]);
         assert_eq!(t.shape(), &[2, 3]);
+    }
+
+    #[test]
+    fn test_reshape_basic() {
+        let t = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]).unwrap();
+
+        // Reshape to 1D
+        let t1d = t.reshape(&[6]).unwrap();
+        assert_eq!(t1d.shape(), &[6]);
+        assert_eq!(t1d.len(), 6);
+
+        // Reshape to 3x2
+        let t3x2 = t.reshape(&[3, 2]).unwrap();
+        assert_eq!(t3x2.shape(), &[3, 2]);
+
+        // Data is the same
+        for i in 0..6 {
+            assert_eq!(t.get_linear(i), t1d.get_linear(i));
+            assert_eq!(t.get_linear(i), t3x2.get_linear(i));
+        }
+    }
+
+    #[test]
+    fn test_reshape_shares_storage() {
+        let t = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]).unwrap();
+
+        let t1d = t.reshape(&[6]).unwrap();
+        let t3x2 = t.reshape(&[3, 2]).unwrap();
+
+        // All share the same storage
+        assert!(t.shares_storage_with(&t1d));
+        assert!(t.shares_storage_with(&t3x2));
+        assert!(t1d.shares_storage_with(&t3x2));
+
+        // All are views (shared)
+        assert!(t.is_view());
+        assert!(t1d.is_view());
+        assert!(t3x2.is_view());
+    }
+
+    #[test]
+    fn test_reshape_copy_on_write() {
+        let t = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]).unwrap();
+        let mut t1d = t.reshape(&[6]).unwrap();
+
+        // Initially shared
+        assert!(t.shares_storage_with(&t1d));
+
+        // Modify t1d
+        t1d.set(&[0], 100.0).unwrap();
+
+        // No longer shared after mutation
+        assert!(!t.shares_storage_with(&t1d));
+
+        // Original unchanged
+        assert_eq!(*t.get_linear(0).unwrap(), 1.0);
+        // Modified version changed
+        assert_eq!(*t1d.get_linear(0).unwrap(), 100.0);
+    }
+
+    #[test]
+    fn test_reshape_invalid_size() {
+        let t = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]).unwrap();
+
+        // Wrong total size
+        assert!(t.reshape(&[5]).is_err());
+        assert!(t.reshape(&[2, 2]).is_err());
+        assert!(t.reshape(&[7]).is_err());
+    }
+
+    #[test]
+    fn test_reshape_to_higher_dim() {
+        let t = Tensor::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[6]).unwrap();
+
+        // Reshape 1D to 2D
+        let t2d = t.reshape(&[2, 3]).unwrap();
+        assert_eq!(t2d.shape(), &[2, 3]);
+
+        // Reshape 1D to 3D
+        let t3d = t.reshape(&[2, 1, 3]).unwrap();
+        assert_eq!(t3d.shape(), &[2, 1, 3]);
+
+        assert!(t.shares_storage_with(&t2d));
+        assert!(t.shares_storage_with(&t3d));
+    }
+
+    #[test]
+    fn test_not_view_single_ref() {
+        let t = Tensor::from_vec(vec![1.0, 2.0, 3.0], &[3]).unwrap();
+        // Single reference is not a view
+        assert!(!t.is_view());
     }
 }

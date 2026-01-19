@@ -44,6 +44,23 @@ See "NDTensors.jl Architecture Reference" section in `docs/design.md` for detail
 - Use same language as past conversations (Japanese if previous was Japanese)
 - Source code and docs in English
 
+### Reference Sources
+
+**Prefer local `extern/` directory over web sources.** This repository includes local copies of reference projects:
+
+```
+extern/
+├── ITensors.jl/     # NDTensors.jl source (in NDTensors/)
+├── faer/            # faer linear algebra library
+└── ...
+```
+
+When investigating NDTensors.jl or faer implementation details:
+1. **First**: Check `extern/` for local source files
+2. **Only if not available locally**: Use web search or fetch
+
+This ensures consistent references and works offline.
+
 ## Code Style
 
 `cargo fmt` for formatting, `cargo clippy` for linting. Avoid `unwrap()`/`expect()` in library code.

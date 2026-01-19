@@ -4,9 +4,10 @@
 //!
 //! ```text
 //! TensorStorage<ElT> (trait)
-//! ├── Dense<ElT, D>    - Contiguous array storage (generic over DataBuffer)
-//! ├── Diag<ElT>        - Diagonal storage (future)
-//! └── BlockSparse<ElT> - Block sparse storage
+//! ├── Dense<ElT, D>           - Contiguous array storage (generic over DataBuffer)
+//! ├── Diag<ElT, D>            - Diagonal storage
+//! ├── BlockSparse<ElT, D>     - Block sparse storage
+//! └── DiagBlockSparse<ElT, D> - Diagonal block sparse storage
 //! ```
 //!
 //! ## Backend Abstraction
@@ -23,11 +24,13 @@
 pub mod blocksparse;
 pub mod buffer;
 mod dense;
+mod diag;
 
 use crate::scalar::Scalar;
 
 pub use buffer::{CpuBuffer, DataBuffer};
 pub use dense::{CpuDense, Dense};
+pub use diag::{CpuDiag, Diag};
 
 /// Trait for tensor storage types.
 ///
@@ -85,5 +88,28 @@ impl<ElT: Scalar, D: DataBuffer<ElT>> TensorStorage<ElT> for Dense<ElT, D> {
 
     fn as_mut_slice(&mut self) -> &mut [ElT] {
         Dense::as_mut_slice(self)
+    }
+}
+
+// Implement TensorStorage for Diag<ElT, D>
+impl<ElT: Scalar, D: DataBuffer<ElT>> TensorStorage<ElT> for Diag<ElT, D> {
+    fn zeros(len: usize) -> Self {
+        Diag::zeros(len)
+    }
+
+    fn from_vec(data: Vec<ElT>) -> Self {
+        Diag::from_vec(data)
+    }
+
+    fn len(&self) -> usize {
+        Diag::len(self)
+    }
+
+    fn as_slice(&self) -> &[ElT] {
+        Diag::as_slice(self)
+    }
+
+    fn as_mut_slice(&mut self) -> &mut [ElT] {
+        Diag::as_mut_slice(self)
     }
 }

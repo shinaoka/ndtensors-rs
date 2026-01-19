@@ -16,6 +16,7 @@
 //! - [`BlockDims`] - Block dimensions for all tensor dimensions
 //! - [`BlockOffsets`] - Mapping from blocks to storage offsets
 //! - [`BlockSparse`] - Block-sparse storage container
+//! - [`DiagBlockSparse`] - Diagonal block-sparse storage container
 //!
 //! # Example
 //!
@@ -42,9 +43,11 @@
 mod block;
 mod block_dim;
 mod block_offsets;
+mod diagblocksparse;
 mod storage;
 
 pub use block::Block;
 pub use block_dim::{BlockDim, BlockDims};
 pub use block_offsets::BlockOffsets;
+pub use diagblocksparse::{CpuDiagBlockSparse, DiagBlockSparse};
 pub use storage::{BlockSparse, CpuBlockSparse};

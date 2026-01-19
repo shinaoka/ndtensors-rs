@@ -277,8 +277,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::DenseTensor;
     use crate::Tensor;
+    use crate::tensor::DenseTensor;
     use approx::assert_relative_eq;
 
     fn create_matrix_blockdims(

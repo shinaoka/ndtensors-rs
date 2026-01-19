@@ -4,20 +4,20 @@ use crate::scalar::Scalar;
 
 /// Dense storage - contiguous array of elements in column-major order.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Dense<T: Scalar> {
-    data: Vec<T>,
+pub struct Dense<ElT: Scalar> {
+    data: Vec<ElT>,
 }
 
-impl<T: Scalar> Dense<T> {
+impl<ElT: Scalar> Dense<ElT> {
     /// Create dense storage with given length, zero-initialized.
     pub fn zeros(len: usize) -> Self {
         Self {
-            data: vec![T::zero(); len],
+            data: vec![ElT::zero(); len],
         }
     }
 
     /// Create dense storage from existing vector (takes ownership).
-    pub fn from_vec(data: Vec<T>) -> Self {
+    pub fn from_vec(data: Vec<ElT>) -> Self {
         Self { data }
     }
 
@@ -35,41 +35,41 @@ impl<T: Scalar> Dense<T> {
 
     /// Get immutable slice of data.
     #[inline]
-    pub fn as_slice(&self) -> &[T] {
+    pub fn as_slice(&self) -> &[ElT] {
         &self.data
     }
 
     /// Get mutable slice of data.
     #[inline]
-    pub fn as_mut_slice(&mut self) -> &mut [T] {
+    pub fn as_mut_slice(&mut self) -> &mut [ElT] {
         &mut self.data
     }
 
     /// Get raw pointer (for FFI).
     #[inline]
-    pub fn as_ptr(&self) -> *const T {
+    pub fn as_ptr(&self) -> *const ElT {
         self.data.as_ptr()
     }
 
     /// Get mutable raw pointer (for FFI).
     #[inline]
-    pub fn as_mut_ptr(&mut self) -> *mut T {
+    pub fn as_mut_ptr(&mut self) -> *mut ElT {
         self.data.as_mut_ptr()
     }
 }
 
-impl<T: Scalar> std::ops::Index<usize> for Dense<T> {
-    type Output = T;
+impl<ElT: Scalar> std::ops::Index<usize> for Dense<ElT> {
+    type Output = ElT;
 
     #[inline]
-    fn index(&self, i: usize) -> &T {
+    fn index(&self, i: usize) -> &ElT {
         &self.data[i]
     }
 }
 
-impl<T: Scalar> std::ops::IndexMut<usize> for Dense<T> {
+impl<ElT: Scalar> std::ops::IndexMut<usize> for Dense<ElT> {
     #[inline]
-    fn index_mut(&mut self, i: usize) -> &mut T {
+    fn index_mut(&mut self, i: usize) -> &mut ElT {
         &mut self.data[i]
     }
 }

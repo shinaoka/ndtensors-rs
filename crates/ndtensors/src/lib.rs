@@ -68,7 +68,7 @@ pub mod strides;
 pub mod tensor;
 
 pub use blocksparse_tensor::{BlockSparseTensor, CpuBlockSparseTensor};
-pub use contract::{contract, contract_vjp};
+pub use contract::{contract, contract_blocksparse, contract_vjp};
 pub use error::TensorError;
 pub use scalar::{Scalar, c64};
 pub use storage::{CpuBuffer, CpuDense, DataBuffer, Dense, TensorStorage};

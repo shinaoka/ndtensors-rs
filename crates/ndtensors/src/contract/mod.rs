@@ -9,6 +9,7 @@
 //!
 //! - `naive`: Loop-based implementation (fallback)
 //! - `gemm`: GEMM-based implementation using faer (optimized)
+//! - `blocksparse`: Block-wise GEMM for `BlockSparseTensor`
 //!
 //! # Example
 //!
@@ -24,6 +25,7 @@
 //! assert_eq!(c.shape(), &[2, 4]);
 //! ```
 
+pub mod blocksparse;
 mod gemm;
 mod naive;
 mod properties;
@@ -33,3 +35,6 @@ pub use properties::ContractionProperties;
 
 // Re-export GEMM-based contraction for explicit use
 pub use gemm::contract_gemm;
+
+// Re-export block-sparse contraction
+pub use blocksparse::contract_blocksparse;

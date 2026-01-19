@@ -6,7 +6,7 @@
 //! TensorStorage<ElT> (trait)
 //! ├── Dense<ElT, D>    - Contiguous array storage (generic over DataBuffer)
 //! ├── Diag<ElT>        - Diagonal storage (future)
-//! └── BlockSparse<ElT> - Block sparse storage (future)
+//! └── BlockSparse<ElT> - Block sparse storage
 //! ```
 //!
 //! ## Backend Abstraction
@@ -20,6 +20,7 @@
 //! └── MetalBuffer<T> - Apple Metal backend (future)
 //! ```
 
+pub mod blocksparse;
 pub mod buffer;
 mod dense;
 

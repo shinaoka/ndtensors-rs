@@ -4,16 +4,29 @@
 //!
 //! ```text
 //! TensorStorage<ElT> (trait)
-//! ├── Dense<ElT>       - Contiguous array storage
+//! ├── Dense<ElT, D>    - Contiguous array storage (generic over DataBuffer)
 //! ├── Diag<ElT>        - Diagonal storage (future)
 //! └── BlockSparse<ElT> - Block sparse storage (future)
 //! ```
+//!
+//! ## Backend Abstraction
+//!
+//! The `DataBuffer` trait provides backend abstraction:
+//!
+//! ```text
+//! DataBuffer<T> (trait)
+//! ├── CpuBuffer<T>   - CPU backend (Vec<T>)
+//! ├── CudaBuffer<T>  - CUDA GPU backend (future)
+//! └── MetalBuffer<T> - Apple Metal backend (future)
+//! ```
 
+pub mod buffer;
 mod dense;
 
 use crate::scalar::Scalar;
 
-pub use dense::Dense;
+pub use buffer::{CpuBuffer, DataBuffer};
+pub use dense::{CpuDense, Dense};
 
 /// Trait for tensor storage types.
 ///
@@ -51,8 +64,8 @@ pub trait TensorStorage<ElT: Scalar>: Clone + std::fmt::Debug {
     }
 }
 
-// Implement TensorStorage for Dense
-impl<ElT: Scalar> TensorStorage<ElT> for Dense<ElT> {
+// Implement TensorStorage for Dense<ElT, D>
+impl<ElT: Scalar, D: DataBuffer<ElT>> TensorStorage<ElT> for Dense<ElT, D> {
     fn zeros(len: usize) -> Self {
         Dense::zeros(len)
     }

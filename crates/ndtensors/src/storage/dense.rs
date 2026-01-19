@@ -1,24 +1,55 @@
 //! Dense storage for tensor data.
+//!
+//! This module provides the `Dense` storage type which holds tensor data
+//! in a contiguous array. The storage is generic over a `DataBuffer` backend,
+//! allowing for CPU (Vec<T>), GPU, or other implementations.
+
+use std::marker::PhantomData;
 
 use crate::scalar::Scalar;
+use crate::storage::buffer::{CpuBuffer, DataBuffer};
 
 /// Dense storage - contiguous array of elements in column-major order.
+///
+/// This mirrors NDTensors.jl's `Dense{ElT, DataT}` structure, where
+/// the data buffer is generic to support different backends (CPU, GPU, etc.).
+///
+/// # Type Parameters
+///
+/// * `ElT` - Element type (e.g., f64, c64)
+/// * `D` - Data buffer type, defaults to `CpuBuffer<ElT>`
 #[derive(Debug, Clone, PartialEq)]
-pub struct Dense<ElT: Scalar> {
-    data: Vec<ElT>,
+pub struct Dense<ElT: Scalar, D: DataBuffer<ElT> = CpuBuffer<ElT>> {
+    data: D,
+    _phantom: PhantomData<ElT>,
 }
 
-impl<ElT: Scalar> Dense<ElT> {
+/// Type alias for CPU-backed dense storage.
+pub type CpuDense<ElT> = Dense<ElT, CpuBuffer<ElT>>;
+
+impl<ElT: Scalar, D: DataBuffer<ElT>> Dense<ElT, D> {
     /// Create dense storage with given length, zero-initialized.
     pub fn zeros(len: usize) -> Self {
         Self {
-            data: vec![ElT::zero(); len],
+            data: D::zeros(len),
+            _phantom: PhantomData,
         }
     }
 
     /// Create dense storage from existing vector (takes ownership).
     pub fn from_vec(data: Vec<ElT>) -> Self {
-        Self { data }
+        Self {
+            data: D::from_vec(data),
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Create dense storage from an existing data buffer.
+    pub fn from_buffer(data: D) -> Self {
+        Self {
+            data,
+            _phantom: PhantomData,
+        }
     }
 
     /// Length of storage.
@@ -36,13 +67,13 @@ impl<ElT: Scalar> Dense<ElT> {
     /// Get immutable slice of data.
     #[inline]
     pub fn as_slice(&self) -> &[ElT] {
-        &self.data
+        self.data.as_slice()
     }
 
     /// Get mutable slice of data.
     #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [ElT] {
-        &mut self.data
+        self.data.as_mut_slice()
     }
 
     /// Get raw pointer (for FFI).
@@ -56,21 +87,33 @@ impl<ElT: Scalar> Dense<ElT> {
     pub fn as_mut_ptr(&mut self) -> *mut ElT {
         self.data.as_mut_ptr()
     }
+
+    /// Get a reference to the underlying data buffer.
+    #[inline]
+    pub fn buffer(&self) -> &D {
+        &self.data
+    }
+
+    /// Get a mutable reference to the underlying data buffer.
+    #[inline]
+    pub fn buffer_mut(&mut self) -> &mut D {
+        &mut self.data
+    }
 }
 
-impl<ElT: Scalar> std::ops::Index<usize> for Dense<ElT> {
+impl<ElT: Scalar, D: DataBuffer<ElT>> std::ops::Index<usize> for Dense<ElT, D> {
     type Output = ElT;
 
     #[inline]
     fn index(&self, i: usize) -> &ElT {
-        &self.data[i]
+        &self.data.as_slice()[i]
     }
 }
 
-impl<ElT: Scalar> std::ops::IndexMut<usize> for Dense<ElT> {
+impl<ElT: Scalar, D: DataBuffer<ElT>> std::ops::IndexMut<usize> for Dense<ElT, D> {
     #[inline]
     fn index_mut(&mut self, i: usize) -> &mut ElT {
-        &mut self.data[i]
+        &mut self.data.as_mut_slice()[i]
     }
 }
 
@@ -90,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_from_vec() {
-        let d = Dense::from_vec(vec![1.0, 2.0, 3.0]);
+        let d: Dense<f64> = Dense::from_vec(vec![1.0, 2.0, 3.0]);
         assert_eq!(d.len(), 3);
         assert_eq!(d[0], 1.0);
         assert_eq!(d[1], 2.0);
@@ -99,14 +142,28 @@ mod tests {
 
     #[test]
     fn test_index_mut() {
-        let mut d = Dense::zeros(3);
+        let mut d: Dense<f64> = Dense::zeros(3);
         d[1] = 5.0;
         assert_eq!(d[1], 5.0);
     }
 
     #[test]
     fn test_as_slice() {
-        let d = Dense::from_vec(vec![1.0, 2.0, 3.0]);
+        let d: Dense<f64> = Dense::from_vec(vec![1.0, 2.0, 3.0]);
         assert_eq!(d.as_slice(), &[1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn test_from_buffer() {
+        let buf = CpuBuffer::from_vec(vec![1.0, 2.0, 3.0]);
+        let d: Dense<f64> = Dense::from_buffer(buf);
+        assert_eq!(d.len(), 3);
+        assert_eq!(d[0], 1.0);
+    }
+
+    #[test]
+    fn test_cpu_dense_alias() {
+        let d: CpuDense<f64> = CpuDense::zeros(5);
+        assert_eq!(d.len(), 5);
     }
 }

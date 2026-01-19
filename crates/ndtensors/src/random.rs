@@ -150,7 +150,7 @@ mod tests {
         // All values should be in [0, 1)
         for i in 0..t.len() {
             let v = *t.get_linear(i).unwrap();
-            assert!(v >= 0.0 && v < 1.0, "value {} not in [0, 1)", v);
+            assert!((0.0..1.0).contains(&v), "value {} not in [0, 1)", v);
         }
     }
 
@@ -164,12 +164,12 @@ mod tests {
         for i in 0..t.len() {
             let v = t.get_linear(i).unwrap();
             assert!(
-                v.re >= 0.0 && v.re < 1.0,
+                (0.0..1.0).contains(&v.re),
                 "real part {} not in [0, 1)",
                 v.re
             );
             assert!(
-                v.im >= 0.0 && v.im < 1.0,
+                (0.0..1.0).contains(&v.im),
                 "imaginary part {} not in [0, 1)",
                 v.im
             );

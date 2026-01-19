@@ -16,8 +16,67 @@ Target:
 
 ## Why Rust?
 
-- **Faster precompilation**: Eliminate JIT overhead, enable rapid trial-and-error (vibe coding) for ITensors.jl-dependent libraries
-- **Maintainability**: Rust's type system catches bugs at compile time, making refactoring safer
+### 1. Zero Runtime Compilation → AI-Accelerated Development
+
+- **Near-zero startup time**: Native code eliminates JIT compilation overhead
+- **Enables practical vibe coding**: AI tools (Claude Code, etc.) can iterate rapidly
+  - Edit code → Run tests immediately → Get feedback
+  - Current Julia: precompile wait is a major bottleneck for AI-assisted development
+
+### 2. 100% Compatibility via C-Pointer Injection
+
+- Inject BLAS/LAPACK function pointers from Julia at runtime
+- Detect CUDA/Metal at runtime and select appropriate backend dynamically
+- **Existing Julia code requires no changes**
+
+### 3. Single C API for All Languages
+
+- Julia, Python, C++, and any other language via one C API
+- Each language only needs a thin wrapper
+- One core implementation, minimal maintenance cost
+- **Full ITensors.jl functionality in Python** becomes achievable quickly
+
+### 4. C API Maintenance is Not Hard
+
+- **Rust's memory safety**: No segfaults, no memory leaks—Rust guarantees safety at compile time
+- **AI agents can manage C API**: Repetitive wrapper code is easy for AI to generate and maintain
+- Far simpler than traditional C/C++ FFI development
+
+### 5. Monorepo with Rust Workspace
+
+Current ITensors.jl ecosystem challenges:
+- TensorAlgebra.jl refactoring in progress
+- Multi-package version synchronization is tedious (especially with official registry)
+
+**Rust workspace solves this**:
+- Manage related crates + Julia bindings in one repository
+- `cargo publish` registers all crates at once
+- CI runs fast across the entire workspace
+
+### 6. No "Two-Language Problem" with Rust
+
+Julia aimed to solve the "Python + C++" two-language problem. Does introducing Rust bring it back?
+
+**No—Rust avoids the two-language problem**:
+- **Excellent package system**: `cargo` rivals Julia's Pkg.jl in usability
+- **JLL package integration**: Distribute Rust binaries via BinaryBuilder.jl
+  - Users just `Pkg.add()`—no compilation required
+  - Cross-platform binaries distributed automatically
+- **User experience unchanged**: Julia users don't notice the Rust backend
+
+### 7. Foundation for Rust Tensor Network Ecosystem
+
+ndtensors-rs is not a standalone project—it becomes the **shared foundation for Rust-based tensor network libraries**:
+
+- **tensor4all-rs**: TCI (Tensor Cross Interpolation), Quantics TT, etc. in Rust
+- Future Rust tensor network libraries share a common core (ndtensors-rs)
+- Avoid duplicate implementations, improve ecosystem quality
+
+### 8. Maintainability
+
+- Rust's type system catches bugs at compile time
+- Explicit ownership/borrowing prevents memory bugs
+- Refactoring is safer with compiler guarantees
 
 ## Implementation Status
 

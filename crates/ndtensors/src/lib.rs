@@ -60,6 +60,7 @@ pub mod blocksparse_tensor;
 pub mod contract;
 pub mod decomposition;
 pub mod diagblocksparse_tensor;
+pub mod empty_number;
 pub mod error;
 pub mod operations;
 pub mod random;
@@ -71,7 +72,11 @@ pub mod tensor;
 pub use blocksparse_tensor::{BlockSparseTensor, CpuBlockSparseTensor};
 pub use contract::{contract, contract_blocksparse, contract_vjp};
 pub use diagblocksparse_tensor::{CpuDiagBlockSparseTensor, DiagBlockSparseTensor};
+pub use empty_number::EmptyNumber;
 pub use error::TensorError;
 pub use scalar::{Scalar, c64};
-pub use storage::{CpuBuffer, CpuDense, CpuDiag, DataBuffer, Dense, Diag, TensorStorage};
+pub use storage::{
+    CpuBuffer, CpuDense, CpuDiag, DataBuffer, Dense, Diag, EmptyNumberStorage, EmptyStorage,
+    TensorStorage,
+};
 pub use tensor::{DenseTensor, Tensor};

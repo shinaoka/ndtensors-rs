@@ -7,7 +7,8 @@
 //! ├── Dense<ElT, D>           - Contiguous array storage (generic over DataBuffer)
 //! ├── Diag<ElT, D>            - Diagonal storage
 //! ├── BlockSparse<ElT, D>     - Block sparse storage
-//! └── DiagBlockSparse<ElT, D> - Diagonal block sparse storage
+//! ├── DiagBlockSparse<ElT, D> - Diagonal block sparse storage
+//! └── EmptyStorage<ElT>       - Empty (zero-element) storage
 //! ```
 //!
 //! ## Backend Abstraction
@@ -25,12 +26,14 @@ pub mod blocksparse;
 pub mod buffer;
 mod dense;
 mod diag;
+mod empty;
 
 use crate::scalar::Scalar;
 
 pub use buffer::{CpuBuffer, DataBuffer};
 pub use dense::{CpuDense, Dense};
 pub use diag::{CpuDiag, Diag};
+pub use empty::{EmptyNumberStorage, EmptyStorage};
 
 /// Trait for tensor storage types.
 ///

@@ -57,6 +57,7 @@
 
 pub mod backend;
 pub mod blocksparse_tensor;
+pub mod combiner_tensor;
 pub mod contract;
 pub mod decomposition;
 pub mod diagblocksparse_tensor;
@@ -70,13 +71,14 @@ pub mod strides;
 pub mod tensor;
 
 pub use blocksparse_tensor::{BlockSparseTensor, CpuBlockSparseTensor};
+pub use combiner_tensor::CombinerTensor;
 pub use contract::{contract, contract_blocksparse, contract_vjp};
 pub use diagblocksparse_tensor::{CpuDiagBlockSparseTensor, DiagBlockSparseTensor};
 pub use empty_number::EmptyNumber;
 pub use error::TensorError;
 pub use scalar::{Scalar, c64};
 pub use storage::{
-    CpuBuffer, CpuDense, CpuDiag, DataBuffer, Dense, Diag, EmptyNumberStorage, EmptyStorage,
-    TensorStorage,
+    Combiner, CpuBuffer, CpuDense, CpuDiag, DataBuffer, Dense, Diag, EmptyNumberStorage,
+    EmptyStorage, TensorStorage,
 };
 pub use tensor::{DenseTensor, Tensor};

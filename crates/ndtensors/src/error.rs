@@ -53,4 +53,12 @@ pub enum TensorError {
     /// Block not found in block-sparse tensor.
     #[error("block {block:?} not found in tensor")]
     BlockNotFound { block: Vec<usize> },
+
+    /// Dimension mismatch.
+    #[error("dimension mismatch: expected {expected} dimensions, got {actual}")]
+    DimensionMismatch { expected: usize, actual: usize },
+
+    /// Invalid operation.
+    #[error("invalid operation: {0}")]
+    InvalidOperation(String),
 }

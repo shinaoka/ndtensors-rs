@@ -76,7 +76,7 @@ Target:
 | `qr_positive`, `ql_positive` | ✅ | Positive R/L diagonal |
 | `random_orthog` | ✅ | Random orthogonal matrix |
 | `random_unitary` | ✅ | Random unitary matrix |
-| `eigen` | ❌ | Not yet implemented |
+| `eigen` | ❌ | Not yet (issue #50) |
 
 ### Operations (BlockSparseTensor)
 

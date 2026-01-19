@@ -8,6 +8,8 @@
 //!
 //! - [`svd`] / [`svd_truncated`]: Singular Value Decomposition
 //! - [`qr`]: QR Decomposition
+//! - [`polar`]: Polar Decomposition (A = U * P)
+//! - [`matrix_exp`]: Matrix Exponential
 //!
 //! # Design
 //!
@@ -35,10 +37,14 @@
 //! let qr_result = qr(&t, &[0, 1], &[2]).unwrap();
 //! ```
 
+mod exp;
+mod polar;
 mod qr;
 mod svd;
 mod util;
 
+pub use exp::matrix_exp;
+pub use polar::{PolarResult, polar};
 pub use qr::{QrResult, qr};
 pub use svd::{SvdResult, svd, svd_truncated};
 pub use util::{PermuteReshapeResult, permute_reshape};

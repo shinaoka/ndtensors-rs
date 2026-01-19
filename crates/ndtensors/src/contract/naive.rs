@@ -510,6 +510,78 @@ pub fn contract_vjp<ElT: Scalar + Add<Output = ElT> + Mul<Output = ElT>>(
     Ok((grad_a, grad_b))
 }
 
+/// Compute the Jacobian-vector product (JVP) for tensor contraction.
+///
+/// Given the contraction `c = contract(a, labels_a, b, labels_b)`, this computes
+/// the JVP (forward-mode AD derivative):
+///
+///   tangent_c = contract(tangent_a, b) + contract(a, tangent_b)
+///
+/// This is the Leibniz product rule for differentiation applied to tensor contraction.
+///
+/// # Arguments
+///
+/// * `a` - First tensor (primal)
+/// * `labels_a` - Labels for each dimension of `a`
+/// * `b` - Second tensor (primal)
+/// * `labels_b` - Labels for each dimension of `b`
+/// * `tangent_a` - Tangent vector for `a` (None for zero tangent)
+/// * `tangent_b` - Tangent vector for `b` (None for zero tangent)
+///
+/// # Returns
+///
+/// The tangent of the output. Returns `None` if both input tangents are `None`.
+///
+/// # Examples
+///
+/// ```
+/// use ndtensors::{Tensor, contract_jvp};
+///
+/// // Matrix multiplication: C[i,k] = A[i,j] * B[j,k]
+/// let a = Tensor::<f64>::ones(&[2, 3]);
+/// let b = Tensor::<f64>::ones(&[3, 4]);
+/// let da = Tensor::<f64>::ones(&[2, 3]); // tangent for A
+///
+/// // JVP: dC = dA @ B (since tangent_b is None)
+/// let dc = contract_jvp(&a, &[1, -1], &b, &[-1, 2], Some(&da), None).unwrap();
+/// assert!(dc.is_some());
+/// assert_eq!(dc.unwrap().shape(), &[2, 4]);
+/// ```
+pub fn contract_jvp<ElT: Scalar + Add<Output = ElT> + Mul<Output = ElT>>(
+    a: &Tensor<ElT>,
+    labels_a: &[i32],
+    b: &Tensor<ElT>,
+    labels_b: &[i32],
+    tangent_a: Option<&Tensor<ElT>>,
+    tangent_b: Option<&Tensor<ElT>>,
+) -> Result<Option<Tensor<ElT>>, TensorError> {
+    use crate::operations::apply_binary;
+
+    match (tangent_a, tangent_b) {
+        (None, None) => {
+            // Both tangents are zero, output tangent is zero
+            Ok(None)
+        }
+        (Some(da), None) => {
+            // JVP: dC = contract(dA, B)
+            let dc = contract(da, labels_a, b, labels_b)?;
+            Ok(Some(dc))
+        }
+        (None, Some(db)) => {
+            // JVP: dC = contract(A, dB)
+            let dc = contract(a, labels_a, db, labels_b)?;
+            Ok(Some(dc))
+        }
+        (Some(da), Some(db)) => {
+            // JVP: dC = contract(dA, B) + contract(A, dB)
+            let dc1 = contract(da, labels_a, b, labels_b)?;
+            let dc2 = contract(a, labels_a, db, labels_b)?;
+            let dc = apply_binary(&dc1, &dc2, |x, y| x + y)?;
+            Ok(Some(dc))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -681,5 +753,111 @@ mod tests {
         assert_relative_eq!(*grad_b.get(&[0]).unwrap(), 3.0);
         assert_relative_eq!(*grad_b.get(&[1]).unwrap(), 3.0);
         assert_relative_eq!(*grad_b.get(&[2]).unwrap(), 3.0);
+    }
+
+    #[test]
+    fn test_contract_jvp_no_tangents() {
+        let a = Tensor::<f64>::ones(&[2, 3]);
+        let b = Tensor::<f64>::ones(&[3, 4]);
+
+        let dc = contract_jvp(&a, &[1, -1], &b, &[-1, 2], None, None).unwrap();
+        assert!(dc.is_none());
+    }
+
+    #[test]
+    fn test_contract_jvp_one_tangent_a() {
+        let a = Tensor::<f64>::ones(&[2, 3]);
+        let b = Tensor::<f64>::ones(&[3, 4]);
+        let da = Tensor::<f64>::ones(&[2, 3]);
+
+        let dc = contract_jvp(&a, &[1, -1], &b, &[-1, 2], Some(&da), None).unwrap();
+        assert!(dc.is_some());
+        let dc = dc.unwrap();
+        assert_eq!(dc.shape(), &[2, 4]);
+
+        // dC = dA @ B = ones(2,3) @ ones(3,4) = 3 * ones(2,4)
+        assert_relative_eq!(*dc.get(&[0, 0]).unwrap(), 3.0);
+        assert_relative_eq!(*dc.get(&[1, 3]).unwrap(), 3.0);
+    }
+
+    #[test]
+    fn test_contract_jvp_one_tangent_b() {
+        let a = Tensor::<f64>::ones(&[2, 3]);
+        let b = Tensor::<f64>::ones(&[3, 4]);
+        let db = Tensor::<f64>::ones(&[3, 4]);
+
+        let dc = contract_jvp(&a, &[1, -1], &b, &[-1, 2], None, Some(&db)).unwrap();
+        assert!(dc.is_some());
+        let dc = dc.unwrap();
+        assert_eq!(dc.shape(), &[2, 4]);
+
+        // dC = A @ dB = ones(2,3) @ ones(3,4) = 3 * ones(2,4)
+        assert_relative_eq!(*dc.get(&[0, 0]).unwrap(), 3.0);
+    }
+
+    #[test]
+    fn test_contract_jvp_both_tangents() {
+        let a = Tensor::<f64>::ones(&[2, 3]);
+        let b = Tensor::<f64>::ones(&[3, 4]);
+        let da = Tensor::<f64>::ones(&[2, 3]);
+        let db = Tensor::<f64>::ones(&[3, 4]);
+
+        let dc = contract_jvp(&a, &[1, -1], &b, &[-1, 2], Some(&da), Some(&db)).unwrap();
+        assert!(dc.is_some());
+        let dc = dc.unwrap();
+
+        // dC = dA @ B + A @ dB = 3 + 3 = 6
+        assert_relative_eq!(*dc.get(&[0, 0]).unwrap(), 6.0);
+    }
+
+    #[test]
+    fn test_contract_jvp_inner_product() {
+        // Inner product: a . b = scalar
+        let a = Tensor::from_vec(vec![1.0, 2.0, 3.0], &[3]).unwrap();
+        let b = Tensor::from_vec(vec![4.0, 5.0, 6.0], &[3]).unwrap();
+        let da = Tensor::from_vec(vec![1.0, 0.0, 0.0], &[3]).unwrap(); // d/da[0]
+
+        let dc = contract_jvp(&a, &[-1], &b, &[-1], Some(&da), None).unwrap();
+        assert!(dc.is_some());
+        let dc = dc.unwrap();
+
+        // d(a.b)/da[0] = b[0] = 4
+        assert_relative_eq!(*dc.get_linear(0).unwrap(), 4.0);
+    }
+
+    #[test]
+    fn test_contract_jvp_vs_finite_diff() {
+        // Verify JVP against finite differences
+        let eps = 1e-7;
+
+        let a_data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let b_data: Vec<f64> = (1..=12).map(|x| x as f64).collect();
+        let da_data = vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6];
+
+        let a = Tensor::from_vec(a_data.clone(), &[2, 3]).unwrap();
+        let b = Tensor::from_vec(b_data.clone(), &[3, 4]).unwrap();
+        let da = Tensor::from_vec(da_data.clone(), &[2, 3]).unwrap();
+
+        // Compute JVP
+        let dc = contract_jvp(&a, &[1, -1], &b, &[-1, 2], Some(&da), None)
+            .unwrap()
+            .unwrap();
+
+        // Compute finite difference: (f(a + eps*da) - f(a)) / eps
+        let a_plus_data: Vec<f64> = a_data
+            .iter()
+            .zip(da_data.iter())
+            .map(|(&x, &d)| x + eps * d)
+            .collect();
+        let a_plus = Tensor::from_vec(a_plus_data, &[2, 3]).unwrap();
+
+        let c = contract(&a, &[1, -1], &b, &[-1, 2]).unwrap();
+        let c_plus = contract(&a_plus, &[1, -1], &b, &[-1, 2]).unwrap();
+
+        // Check each element
+        for i in 0..c.len() {
+            let fd = (*c_plus.get_linear(i).unwrap() - *c.get_linear(i).unwrap()) / eps;
+            assert_relative_eq!(*dc.get_linear(i).unwrap(), fd, epsilon = 1e-5);
+        }
     }
 }

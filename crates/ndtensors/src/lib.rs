@@ -75,7 +75,7 @@ pub mod autodiff;
 
 pub use blocksparse_tensor::{BlockSparseTensor, CpuBlockSparseTensor};
 pub use combiner_tensor::CombinerTensor;
-pub use contract::{contract, contract_blocksparse, contract_vjp};
+pub use contract::{contract, contract_blocksparse, contract_jvp, contract_vjp};
 pub use diagblocksparse_tensor::{CpuDiagBlockSparseTensor, DiagBlockSparseTensor};
 pub use empty_number::EmptyNumber;
 pub use error::TensorError;

@@ -10,7 +10,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use libc::{c_double, c_int, c_long, size_t};
-use ndtensors::{Tensor, contract, contract_vjp};
+use ndtensors::{Tensor, contract, contract_jvp, contract_vjp};
 use std::panic::catch_unwind;
 use std::ptr;
 
@@ -606,6 +606,130 @@ pub extern "C" fn ndt_tensor_f64_contract_vjp(
     }
 }
 
+/// Compute JVP (Jacobian-vector product) for tensor contraction.
+///
+/// Given the contraction `c = contract(a, b)`, computes both the primal
+/// result and the tangent (JVP) using the Leibniz rule:
+///   tangent_c = contract(tangent_a, b) + contract(a, tangent_b)
+///
+/// This is the forward-mode autodiff primitive for tensor contraction.
+///
+/// # Arguments
+///
+/// * `a` - First tensor (primal)
+/// * `labels_a` - Labels for dimensions of `a`
+/// * `ndim_a` - Number of dimensions of `a`
+/// * `b` - Second tensor (primal)
+/// * `labels_b` - Labels for dimensions of `b`
+/// * `ndim_b` - Number of dimensions of `b`
+/// * `tangent_a` - Tangent for `a` (NULL for zero tangent)
+/// * `tangent_b` - Tangent for `b` (NULL for zero tangent)
+/// * `primal_out` - Output: primal result (contract(a, b))
+/// * `tangent_out` - Output: tangent result (will be NULL if both tangent inputs are NULL)
+/// * `status` - Pointer to receive status code
+///
+/// # Ownership
+///
+/// On success, `primal_out` will point to a newly allocated tensor.
+/// `tangent_out` will point to a newly allocated tensor, or be NULL
+/// if both `tangent_a` and `tangent_b` are NULL.
+/// The caller is responsible for releasing these tensors by calling
+/// `ndt_tensor_f64_release` when they are no longer needed.
+#[unsafe(no_mangle)]
+pub extern "C" fn ndt_tensor_f64_contract_jvp(
+    a: *const ndt_tensor_f64,
+    labels_a: *const c_long,
+    ndim_a: size_t,
+    b: *const ndt_tensor_f64,
+    labels_b: *const c_long,
+    ndim_b: size_t,
+    tangent_a: *const ndt_tensor_f64,
+    tangent_b: *const ndt_tensor_f64,
+    primal_out: *mut *mut ndt_tensor_f64,
+    tangent_out: *mut *mut ndt_tensor_f64,
+    status: *mut StatusCode,
+) {
+    if status.is_null() {
+        return;
+    }
+
+    // Validate required arguments
+    if a.is_null()
+        || b.is_null()
+        || labels_a.is_null()
+        || labels_b.is_null()
+        || primal_out.is_null()
+        || tangent_out.is_null()
+    {
+        unsafe {
+            *status = NDT_INVALID_ARGUMENT;
+        }
+        return;
+    }
+
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
+        let tensor_a = (*a).inner();
+        let tensor_b = (*b).inner();
+        let labels_a_slice = std::slice::from_raw_parts(labels_a, ndim_a);
+        let labels_b_slice = std::slice::from_raw_parts(labels_b, ndim_b);
+
+        // Convert labels
+        let labels_a_i32: Vec<i32> = labels_a_slice.iter().map(|&l| l as i32).collect();
+        let labels_b_i32: Vec<i32> = labels_b_slice.iter().map(|&l| l as i32).collect();
+
+        // Get optional tangents
+        let tangent_a_opt = if tangent_a.is_null() {
+            None
+        } else {
+            Some((*tangent_a).inner())
+        };
+        let tangent_b_opt = if tangent_b.is_null() {
+            None
+        } else {
+            Some((*tangent_b).inner())
+        };
+
+        // Compute primal
+        let primal = match contract(tensor_a, &labels_a_i32, tensor_b, &labels_b_i32) {
+            Ok(p) => p,
+            Err(_) => return NDT_SHAPE_MISMATCH,
+        };
+
+        // Compute JVP
+        let tangent = match contract_jvp(
+            tensor_a,
+            &labels_a_i32,
+            tensor_b,
+            &labels_b_i32,
+            tangent_a_opt,
+            tangent_b_opt,
+        ) {
+            Ok(t) => t,
+            Err(_) => return NDT_SHAPE_MISMATCH,
+        };
+
+        // Allocate outputs
+        *primal_out = Box::into_raw(Box::new(ndt_tensor_f64::from_tensor(primal)));
+        *tangent_out = match tangent {
+            Some(t) => Box::into_raw(Box::new(ndt_tensor_f64::from_tensor(t))),
+            None => ptr::null_mut(),
+        };
+
+        NDT_SUCCESS
+    }));
+
+    match result {
+        Ok(code) => unsafe {
+            *status = code;
+        },
+        Err(_) => unsafe {
+            *status = NDT_INTERNAL_ERROR;
+            *primal_out = ptr::null_mut();
+            *tangent_out = ptr::null_mut();
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -842,5 +966,185 @@ mod tests {
         ndt_tensor_f64_release(grad_output);
         ndt_tensor_f64_release(grad_a);
         ndt_tensor_f64_release(grad_b);
+    }
+
+    #[test]
+    fn test_contract_jvp_null_tangents() {
+        // Test with NULL tangents (both constants)
+        let mut status: StatusCode = -999;
+
+        // Create A: 2x3 matrix of ones
+        let shape_a = [2usize, 3usize];
+        let a = ndt_tensor_f64_zeros(shape_a.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(a, 1.0), NDT_SUCCESS);
+
+        // Create B: 3x4 matrix of ones
+        let shape_b = [3usize, 4usize];
+        let b = ndt_tensor_f64_zeros(shape_b.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(b, 1.0), NDT_SUCCESS);
+
+        // Labels
+        let labels_a = [1i64, -1i64];
+        let labels_b = [-1i64, 2i64];
+
+        let mut primal: *mut ndt_tensor_f64 = ptr::null_mut();
+        let mut tangent: *mut ndt_tensor_f64 = ptr::null_mut();
+
+        ndt_tensor_f64_contract_jvp(
+            a,
+            labels_a.as_ptr() as *const c_long,
+            2,
+            b,
+            labels_b.as_ptr() as *const c_long,
+            2,
+            ptr::null(), // tangent_a = NULL
+            ptr::null(), // tangent_b = NULL
+            &mut primal,
+            &mut tangent,
+            &mut status,
+        );
+
+        assert_eq!(status, NDT_SUCCESS);
+        assert!(!primal.is_null());
+        assert!(tangent.is_null()); // Should be NULL when both tangents are NULL
+
+        // Check primal shape is 2x4
+        assert_eq!(ndt_tensor_f64_ndim(primal), 2);
+        let mut primal_shape = [0usize; 2];
+        ndt_tensor_f64_shape(primal, primal_shape.as_mut_ptr());
+        assert_eq!(primal_shape, [2, 4]);
+
+        // Each element should be 3 (sum over contracted dimension of size 3)
+        let mut val = 0.0;
+        assert_eq!(ndt_tensor_f64_get_linear(primal, 0, &mut val), NDT_SUCCESS);
+        assert_eq!(val, 3.0);
+
+        ndt_tensor_f64_release(a);
+        ndt_tensor_f64_release(b);
+        ndt_tensor_f64_release(primal);
+        // Don't release tangent since it's null
+    }
+
+    #[test]
+    fn test_contract_jvp_with_tangent_a() {
+        // Test with tangent only for A
+        let mut status: StatusCode = -999;
+
+        // Create A: 2x3 matrix of ones
+        let shape_a = [2usize, 3usize];
+        let a = ndt_tensor_f64_zeros(shape_a.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(a, 1.0), NDT_SUCCESS);
+
+        // Create B: 3x4 matrix of ones
+        let shape_b = [3usize, 4usize];
+        let b = ndt_tensor_f64_zeros(shape_b.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(b, 1.0), NDT_SUCCESS);
+
+        // Create tangent_a: 2x3 matrix of ones
+        let tangent_a = ndt_tensor_f64_zeros(shape_a.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(tangent_a, 1.0), NDT_SUCCESS);
+
+        // Labels
+        let labels_a = [1i64, -1i64];
+        let labels_b = [-1i64, 2i64];
+
+        let mut primal: *mut ndt_tensor_f64 = ptr::null_mut();
+        let mut tangent: *mut ndt_tensor_f64 = ptr::null_mut();
+
+        ndt_tensor_f64_contract_jvp(
+            a,
+            labels_a.as_ptr() as *const c_long,
+            2,
+            b,
+            labels_b.as_ptr() as *const c_long,
+            2,
+            tangent_a,   // tangent_a = ones
+            ptr::null(), // tangent_b = NULL
+            &mut primal,
+            &mut tangent,
+            &mut status,
+        );
+
+        assert_eq!(status, NDT_SUCCESS);
+        assert!(!primal.is_null());
+        assert!(!tangent.is_null());
+
+        // Check tangent shape is 2x4
+        assert_eq!(ndt_tensor_f64_ndim(tangent), 2);
+        let mut tangent_shape = [0usize; 2];
+        ndt_tensor_f64_shape(tangent, tangent_shape.as_mut_ptr());
+        assert_eq!(tangent_shape, [2, 4]);
+
+        // Tangent: dC = dA @ B = ones(2,3) @ ones(3,4) = 3 * ones(2,4)
+        let mut val = 0.0;
+        assert_eq!(ndt_tensor_f64_get_linear(tangent, 0, &mut val), NDT_SUCCESS);
+        assert_eq!(val, 3.0);
+
+        ndt_tensor_f64_release(a);
+        ndt_tensor_f64_release(b);
+        ndt_tensor_f64_release(tangent_a);
+        ndt_tensor_f64_release(primal);
+        ndt_tensor_f64_release(tangent);
+    }
+
+    #[test]
+    fn test_contract_jvp_with_both_tangents() {
+        // Test with tangents for both A and B
+        let mut status: StatusCode = -999;
+
+        // Create A: 2x3 matrix of ones
+        let shape_a = [2usize, 3usize];
+        let a = ndt_tensor_f64_zeros(shape_a.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(a, 1.0), NDT_SUCCESS);
+
+        // Create B: 3x4 matrix of ones
+        let shape_b = [3usize, 4usize];
+        let b = ndt_tensor_f64_zeros(shape_b.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(b, 1.0), NDT_SUCCESS);
+
+        // Create tangent_a: 2x3 matrix of ones
+        let tangent_a = ndt_tensor_f64_zeros(shape_a.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(tangent_a, 1.0), NDT_SUCCESS);
+
+        // Create tangent_b: 3x4 matrix of ones
+        let tangent_b = ndt_tensor_f64_zeros(shape_b.as_ptr(), 2, &mut status);
+        assert_eq!(ndt_tensor_f64_fill(tangent_b, 1.0), NDT_SUCCESS);
+
+        // Labels
+        let labels_a = [1i64, -1i64];
+        let labels_b = [-1i64, 2i64];
+
+        let mut primal: *mut ndt_tensor_f64 = ptr::null_mut();
+        let mut tangent: *mut ndt_tensor_f64 = ptr::null_mut();
+
+        ndt_tensor_f64_contract_jvp(
+            a,
+            labels_a.as_ptr() as *const c_long,
+            2,
+            b,
+            labels_b.as_ptr() as *const c_long,
+            2,
+            tangent_a,
+            tangent_b,
+            &mut primal,
+            &mut tangent,
+            &mut status,
+        );
+
+        assert_eq!(status, NDT_SUCCESS);
+        assert!(!primal.is_null());
+        assert!(!tangent.is_null());
+
+        // Tangent: dC = dA @ B + A @ dB = 3 + 3 = 6
+        let mut val = 0.0;
+        assert_eq!(ndt_tensor_f64_get_linear(tangent, 0, &mut val), NDT_SUCCESS);
+        assert_eq!(val, 6.0);
+
+        ndt_tensor_f64_release(a);
+        ndt_tensor_f64_release(b);
+        ndt_tensor_f64_release(tangent_a);
+        ndt_tensor_f64_release(tangent_b);
+        ndt_tensor_f64_release(primal);
+        ndt_tensor_f64_release(tangent);
     }
 }

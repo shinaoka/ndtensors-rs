@@ -60,6 +60,7 @@
 
 mod any_storage;
 mod backward;
+mod dual;
 mod gradients;
 mod graph;
 mod ops;
@@ -68,8 +69,9 @@ mod tensor;
 
 pub use any_storage::AnyStorage;
 pub use backward::backward;
+pub use dual::DualTensor;
 pub use gradients::Gradients;
 pub use graph::{ComputationGraph, GradFn, NodeId, NodeRef, clear_graph_f64, with_graph_f64};
-pub use ops::tracked_contract;
+pub use ops::{dual_contract, tracked_contract};
 pub use saved_tensor::{SavePolicy, SavedTensor};
 pub use tensor::{TrackedTensor, clear_graph};

@@ -237,4 +237,55 @@ using NDTensorsRS
         @test size(tangents[2]) == (2, 3)  # grad_a
         @test size(tangents[4]) == (3, 4)  # grad_b
     end
+
+    @testset "Zygote AD" begin
+        using Zygote
+
+        # Matrix multiplication with Zygote
+        a = TensorF64(2, 3)
+        fill!(a, 1.0)
+        b = TensorF64(3, 4)
+        fill!(b, 1.0)
+
+        # Define loss function
+        function loss(a, b)
+            c = contract(a, (1, -1), b, (-1, 2))
+            return sum(Array(c))
+        end
+
+        # Compute gradients using Zygote
+        grad_a, grad_b = Zygote.gradient(loss, a, b)
+
+        # loss = sum(C) where C[i,k] = sum_j A[i,j] * B[j,k]
+        # d(loss)/d(A[i,j]) = sum_k B[j,k] = 4 (since B is all ones with 4 columns)
+        # d(loss)/d(B[j,k]) = sum_i A[i,j] = 2 (since A is all ones with 2 rows)
+        @test size(grad_a) == (2, 3)
+        @test size(grad_b) == (3, 4)
+
+        arr_ga = Array(grad_a)
+        arr_gb = Array(grad_b)
+
+        for i in 1:2, j in 1:3
+            @test arr_ga[i, j] ≈ 4.0
+        end
+
+        for j in 1:3, k in 1:4
+            @test arr_gb[j, k] ≈ 2.0
+        end
+
+        # Inner product with Zygote
+        v1 = TensorF64([1.0, 2.0, 3.0], (3,))
+        v2 = TensorF64([4.0, 5.0, 6.0], (3,))
+
+        function inner_loss(v1, v2)
+            c = contract(v1, (-1,), v2, (-1,))
+            return c[1]
+        end
+
+        gv1, gv2 = Zygote.gradient(inner_loss, v1, v2)
+
+        # d(v1·v2)/d(v1) = v2, d(v1·v2)/d(v2) = v1
+        @test Array(gv1) ≈ [4.0, 5.0, 6.0]
+        @test Array(gv2) ≈ [1.0, 2.0, 3.0]
+    end
 end

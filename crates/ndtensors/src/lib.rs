@@ -35,6 +35,25 @@
 //! let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
 //! let t2: DenseTensor<f64> = Tensor::from_vec(data, &[2, 3]).unwrap();
 //! ```
+//!
+//! # Permutation and Contraction
+//!
+//! ```
+//! use ndtensors::{Tensor, contract};
+//!
+//! // Create tensors
+//! let a = Tensor::<f64>::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]).unwrap();
+//! let b = Tensor::<f64>::ones(&[3, 4]);
+//!
+//! // Permute dimensions (transpose)
+//! let a_t = a.permutedims(&[1, 0]).unwrap();
+//! assert_eq!(a_t.shape(), &[3, 2]);
+//!
+//! // Tensor contraction: C[i,k] = A[i,j] * B[j,k]
+//! // Negative labels indicate contracted indices
+//! let c = contract(&a, &[1, -1], &b, &[-1, 2]).unwrap();
+//! assert_eq!(c.shape(), &[2, 4]);
+//! ```
 
 pub mod backend;
 pub mod contract;

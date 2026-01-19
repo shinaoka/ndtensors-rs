@@ -63,7 +63,7 @@ This ensures consistent references and works offline.
 
 ## Code Style
 
-`cargo fmt` for formatting, `cargo clippy` for linting. Avoid `unwrap()`/`expect()` in library code.
+`cargo fmt` for formatting, `cargo clippy --workspace --all-targets -- -D warnings` for linting. Avoid `unwrap()`/`expect()` in library code.
 
 **Always run `cargo fmt --all` before committing changes.**
 
@@ -132,7 +132,7 @@ Before creating a PR, always run lint checks locally:
 
 ```bash
 cargo fmt --all          # Format all code
-cargo clippy             # Check for common issues
+cargo clippy --workspace --all-targets -- -D warnings             # Check for common issues
 cargo test               # Run all tests
 ```
 
@@ -144,7 +144,7 @@ cargo test               # Run all tests
 ```bash
 # Minor: branch workflow
 git checkout -b fix-name && git add -A && git commit -m "msg"
-cargo fmt --all && cargo clippy  # Lint before push
+cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings  # Lint before push
 git push -u origin fix-name
 gh pr create --base main --title "Title" --body "Desc"
 gh pr merge --auto --squash --delete-branch

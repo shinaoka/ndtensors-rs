@@ -104,6 +104,96 @@ pub fn permutedims_into<ElT: Scalar>(
     GenericBackend::permute_into(dest, src, perm);
 }
 
+/// Permute dimensions with a combining function.
+///
+/// Like `permutedims`, but applies a function that combines the existing
+/// result value with the permuted source value.
+///
+/// This is useful for operations like accumulating permuted tensors:
+/// `result[perm_indices] = f(result[perm_indices], src[indices])`
+///
+/// # Arguments
+///
+/// * `result` - Output tensor (must have correct permuted shape)
+/// * `src` - Input tensor
+/// * `perm` - Permutation of dimensions
+/// * `f` - Binary function to combine result and source values
+///
+/// # Errors
+///
+/// Returns error if `perm` is not a valid permutation of `0..ndim`.
+///
+/// # Example
+///
+/// ```
+/// use ndtensors::DenseTensor;
+/// use ndtensors::operations::permutedims_with;
+///
+/// let src: DenseTensor<f64> = DenseTensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
+/// let mut result: DenseTensor<f64> = DenseTensor::ones(&[2, 2]);
+///
+/// // Add transposed tensor to result
+/// permutedims_with(&mut result, &src, &[1, 0], |r, s| r + s).unwrap();
+///
+/// // result[i,j] = 1.0 + src[j,i]
+/// assert_eq!(*result.get(&[0, 0]).unwrap(), 2.0); // 1 + src[0,0] = 1 + 1
+/// assert_eq!(*result.get(&[0, 1]).unwrap(), 3.0); // 1 + src[1,0] = 1 + 2
+/// ```
+pub fn permutedims_with<ElT: Scalar, F>(
+    result: &mut DenseTensor<ElT>,
+    src: &DenseTensor<ElT>,
+    perm: &[usize],
+    f: F,
+) -> Result<(), TensorError>
+where
+    F: Fn(ElT, ElT) -> ElT,
+{
+    // Validate permutation
+    validate_permutation(perm, src.ndim())?;
+
+    // Validate shapes match
+    let expected_shape: Vec<usize> = perm.iter().map(|&p| src.shape()[p]).collect();
+    if result.shape() != expected_shape {
+        return Err(TensorError::ShapeMismatch {
+            expected: expected_shape.iter().product(),
+            actual: result.len(),
+        });
+    }
+
+    // Compute inverse permutation for mapping dest indices to src indices
+    let ndim = perm.len();
+    let mut inv_perm = vec![0usize; ndim];
+    for (i, &p) in perm.iter().enumerate() {
+        inv_perm[p] = i;
+    }
+
+    // Iterate over all indices
+    let src_shape = src.shape();
+    let mut src_indices = vec![0usize; ndim];
+
+    let total_elements = src.len();
+    for _ in 0..total_elements {
+        // Compute destination indices from source indices
+        let dest_indices: Vec<usize> = inv_perm.iter().map(|&i| src_indices[i]).collect();
+
+        // Apply function
+        let src_val = *src.get(&src_indices).unwrap();
+        let dest_val = *result.get(&dest_indices).unwrap();
+        result.set(&dest_indices, f(dest_val, src_val)).unwrap();
+
+        // Increment source indices (column-major)
+        for d in 0..ndim {
+            src_indices[d] += 1;
+            if src_indices[d] < src_shape[d] {
+                break;
+            }
+            src_indices[d] = 0;
+        }
+    }
+
+    Ok(())
+}
+
 /// Validate that perm is a valid permutation of 0..ndim.
 fn validate_permutation(perm: &[usize], ndim: usize) -> Result<(), TensorError> {
     if perm.len() != ndim {
@@ -223,5 +313,60 @@ mod tests {
                 assert_eq!(src.get(&[i, j]), dest.get(&[j, i]));
             }
         }
+    }
+
+    #[test]
+    fn test_permutedims_with_add() {
+        let src: DenseTensor<f64> =
+            DenseTensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
+        let mut result: DenseTensor<f64> = DenseTensor::ones(&[2, 2]);
+
+        // Add transposed tensor to result
+        permutedims_with(&mut result, &src, &[1, 0], |r, s| r + s).unwrap();
+
+        // result[i,j] = 1.0 + src[j,i]
+        assert_eq!(*result.get(&[0, 0]).unwrap(), 2.0); // 1 + src[0,0] = 1 + 1
+        assert_eq!(*result.get(&[0, 1]).unwrap(), 3.0); // 1 + src[1,0] = 1 + 2
+        assert_eq!(*result.get(&[1, 0]).unwrap(), 4.0); // 1 + src[0,1] = 1 + 3
+        assert_eq!(*result.get(&[1, 1]).unwrap(), 5.0); // 1 + src[1,1] = 1 + 4
+    }
+
+    #[test]
+    fn test_permutedims_with_multiply() {
+        let src: DenseTensor<f64> =
+            DenseTensor::from_vec(vec![2.0, 3.0, 4.0, 5.0], &[2, 2]).unwrap();
+        let mut result: DenseTensor<f64> =
+            DenseTensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
+
+        // Multiply by transposed tensor
+        permutedims_with(&mut result, &src, &[1, 0], |r, s| r * s).unwrap();
+
+        // result[i,j] = result[i,j] * src[j,i]
+        assert_eq!(*result.get(&[0, 0]).unwrap(), 2.0); // 1 * 2
+        assert_eq!(*result.get(&[0, 1]).unwrap(), 9.0); // 3 * 3
+        assert_eq!(*result.get(&[1, 0]).unwrap(), 8.0); // 2 * 4
+        assert_eq!(*result.get(&[1, 1]).unwrap(), 20.0); // 4 * 5
+    }
+
+    #[test]
+    fn test_permutedims_with_identity_perm() {
+        let src: DenseTensor<f64> =
+            DenseTensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
+        let mut result: DenseTensor<f64> = DenseTensor::zeros(&[2, 2]);
+
+        // Copy with identity permutation
+        permutedims_with(&mut result, &src, &[0, 1], |_r, s| s).unwrap();
+
+        assert_eq!(result.data(), src.data());
+    }
+
+    #[test]
+    fn test_permutedims_with_invalid_perm() {
+        let src: DenseTensor<f64> = DenseTensor::zeros(&[2, 3]);
+        let mut result: DenseTensor<f64> = DenseTensor::zeros(&[3, 2]);
+
+        // Invalid permutation
+        assert!(permutedims_with(&mut result, &src, &[0], |r, s| r + s).is_err());
+        assert!(permutedims_with(&mut result, &src, &[0, 0], |r, s| r + s).is_err());
     }
 }

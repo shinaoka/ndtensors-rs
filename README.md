@@ -100,15 +100,20 @@ Target:
 | Complex64 | ❌ | Not yet (issue #48) |
 | BlockSparseTensor | ❌ | Not yet (issue #48) |
 | Decompositions (SVD, QR) | ❌ | Not yet (issue #48) |
-| AD functions (VJP/JVP) | ❌ | Future work |
+| AD functions (VJP/JVP) | ❌ | See issue #52 |
 
-### Automatic Differentiation
+### Automatic Differentiation (issue #52)
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| `contract_vjp` | ✅ | Reverse-mode gradient |
-| Other VJP/JVP | ❌ | Future work |
-| ChainRules.jl integration | ❌ | Future work |
+| Phase | Feature | Status | Notes |
+|-------|---------|--------|-------|
+| 1 | VJP primitives (`contract_vjp`, `svd_vjp`, etc.) | 🔶 | `contract_vjp` done, others pending |
+| 2 | JVP primitives (forward-mode) | ❌ | Not yet |
+| 3 | Native Rust AD (Tape/Dual) | ❌ | For pure Rust usage |
+| 4 | Hessian-vector products | ❌ | Requires Phase 1+2 |
+
+Host language integration:
+- **Julia**: ChainRules.jl rrule/frule
+- **Python**: JAX custom_vjp/jvp, PyTorch autograd.Function
 
 ## Usage Examples
 

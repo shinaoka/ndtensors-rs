@@ -48,10 +48,10 @@ use crate::tensor::DenseTensor;
 /// assert_eq!(t.get(&[0, 0]), t2.get(&[0, 0]));
 /// assert_eq!(t.get(&[1, 0]), t2.get(&[0, 1]));
 /// ```
-pub fn permutedims<T: Scalar>(
-    tensor: &DenseTensor<T>,
+pub fn permutedims<ElT: Scalar>(
+    tensor: &DenseTensor<ElT>,
     perm: &[usize],
-) -> Result<DenseTensor<T>, TensorError> {
+) -> Result<DenseTensor<ElT>, TensorError> {
     // Validate permutation
     validate_permutation(perm, tensor.ndim())?;
 
@@ -94,9 +94,9 @@ pub fn permutedims<T: Scalar>(
 /// permutedims_into(&mut dest, &src, &[1, 0]);
 /// assert_eq!(src.get(&[1, 2]), dest.get(&[2, 1]));
 /// ```
-pub fn permutedims_into<T: Scalar>(
-    dest: &mut DenseTensor<T>,
-    src: &DenseTensor<T>,
+pub fn permutedims_into<ElT: Scalar>(
+    dest: &mut DenseTensor<ElT>,
+    src: &DenseTensor<ElT>,
     perm: &[usize],
 ) {
     // TODO: Add backend selection (thread_local or parameter)

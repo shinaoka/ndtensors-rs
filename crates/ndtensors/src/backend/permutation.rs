@@ -25,5 +25,9 @@ pub trait PermutationBackend {
     /// # Panics
     ///
     /// Panics if shapes don't match the permutation.
-    fn permute_into<T: Scalar>(dest: &mut DenseTensor<T>, src: &DenseTensor<T>, perm: &[usize]);
+    fn permute_into<ElT: Scalar>(
+        dest: &mut DenseTensor<ElT>,
+        src: &DenseTensor<ElT>,
+        perm: &[usize],
+    );
 }

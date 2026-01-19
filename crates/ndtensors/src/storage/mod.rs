@@ -3,10 +3,10 @@
 //! Following NDTensors.jl's storage hierarchy:
 //!
 //! ```text
-//! TensorStorage<T> (trait)
-//! ├── Dense<T>       - Contiguous array storage
-//! ├── Diag<T>        - Diagonal storage (future)
-//! └── BlockSparse<T> - Block sparse storage (future)
+//! TensorStorage<ElT> (trait)
+//! ├── Dense<ElT>       - Contiguous array storage
+//! ├── Diag<ElT>        - Diagonal storage (future)
+//! └── BlockSparse<ElT> - Block sparse storage (future)
 //! ```
 
 mod dense;
@@ -19,12 +19,12 @@ pub use dense::Dense;
 ///
 /// This mirrors NDTensors.jl's `TensorStorage{ElT} <: AbstractVector{ElT}`.
 /// Storage is always a flat vector; shape/strides come from the Tensor wrapper.
-pub trait TensorStorage<T: Scalar>: Clone + std::fmt::Debug {
+pub trait TensorStorage<ElT: Scalar>: Clone + std::fmt::Debug {
     /// Create storage with given length, zero-initialized.
     fn zeros(len: usize) -> Self;
 
     /// Create storage from existing vector.
-    fn from_vec(data: Vec<T>) -> Self;
+    fn from_vec(data: Vec<ElT>) -> Self;
 
     /// Length of storage (number of elements).
     fn len(&self) -> usize;
@@ -35,29 +35,29 @@ pub trait TensorStorage<T: Scalar>: Clone + std::fmt::Debug {
     }
 
     /// Get immutable slice of data.
-    fn as_slice(&self) -> &[T];
+    fn as_slice(&self) -> &[ElT];
 
     /// Get mutable slice of data.
-    fn as_mut_slice(&mut self) -> &mut [T];
+    fn as_mut_slice(&mut self) -> &mut [ElT];
 
     /// Get raw pointer (for FFI).
-    fn as_ptr(&self) -> *const T {
+    fn as_ptr(&self) -> *const ElT {
         self.as_slice().as_ptr()
     }
 
     /// Get mutable raw pointer (for FFI).
-    fn as_mut_ptr(&mut self) -> *mut T {
+    fn as_mut_ptr(&mut self) -> *mut ElT {
         self.as_mut_slice().as_mut_ptr()
     }
 }
 
 // Implement TensorStorage for Dense
-impl<T: Scalar> TensorStorage<T> for Dense<T> {
+impl<ElT: Scalar> TensorStorage<ElT> for Dense<ElT> {
     fn zeros(len: usize) -> Self {
         Dense::zeros(len)
     }
 
-    fn from_vec(data: Vec<T>) -> Self {
+    fn from_vec(data: Vec<ElT>) -> Self {
         Dense::from_vec(data)
     }
 
@@ -65,11 +65,11 @@ impl<T: Scalar> TensorStorage<T> for Dense<T> {
         Dense::len(self)
     }
 
-    fn as_slice(&self) -> &[T] {
+    fn as_slice(&self) -> &[ElT] {
         Dense::as_slice(self)
     }
 
-    fn as_mut_slice(&mut self) -> &mut [T] {
+    fn as_mut_slice(&mut self) -> &mut [ElT] {
         Dense::as_mut_slice(self)
     }
 }

@@ -12,7 +12,11 @@ use crate::tensor::DenseTensor;
 pub struct GenericBackend;
 
 impl PermutationBackend for GenericBackend {
-    fn permute_into<T: Scalar>(dest: &mut DenseTensor<T>, src: &DenseTensor<T>, perm: &[usize]) {
+    fn permute_into<ElT: Scalar>(
+        dest: &mut DenseTensor<ElT>,
+        src: &DenseTensor<ElT>,
+        perm: &[usize],
+    ) {
         let old_shape = src.shape();
         // Copy strides to avoid borrow conflict with data_mut()
         let new_strides: Vec<usize> = dest.strides().to_vec();

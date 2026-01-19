@@ -262,7 +262,7 @@ mod tests {
         let t = DenseTensor::from_vec(vec![1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
         let result = slice(&t, &[0..0, 0..2]);
         // Empty slice results in shape mismatch due to implementation
-        assert!(result.is_err() || result.unwrap().len() == 0);
+        assert!(result.is_err() || result.unwrap().is_empty());
     }
 
     #[test]

@@ -442,4 +442,53 @@ function ChainRulesCore.rrule(::typeof(contract), a::TensorF64, labels_a, b::Ten
     return c, contract_pullback
 end
 
+"""
+    ChainRulesCore.rrule(::typeof(Array), t::TensorF64)
+
+Reverse-mode AD rule for converting TensorF64 to Array.
+
+This enables automatic differentiation through `Array(t)` using AD frameworks
+like Zygote.jl that support ChainRules.jl.
+"""
+function ChainRulesCore.rrule(::typeof(Array), t::TensorF64)
+    arr = Array(t)
+
+    function array_pullback(Δarr)
+        # Convert the gradient array back to TensorF64
+        if Δarr isa AbstractArray
+            grad_t = TensorF64(Array{Float64}(Δarr), size(t))
+            return (NoTangent(), grad_t)
+        else
+            # Handle ZeroTangent or other tangent types
+            return (NoTangent(), Δarr)
+        end
+    end
+
+    return arr, array_pullback
+end
+
+"""
+    ChainRulesCore.rrule(::typeof(getindex), t::TensorF64, i::Int)
+
+Reverse-mode AD rule for linear indexing of TensorF64.
+
+This enables automatic differentiation through `t[i]` using AD frameworks
+like Zygote.jl that support ChainRules.jl.
+"""
+function ChainRulesCore.rrule(::typeof(getindex), t::TensorF64, i::Int)
+    val = t[i]
+
+    function getindex_pullback(Δval)
+        # Create a zero tensor with gradient only at index i
+        grad_t = TensorF64(size(t))
+        fill!(grad_t, 0.0)
+        if Δval isa Real
+            grad_t[i] = Float64(Δval)
+        end
+        return (NoTangent(), grad_t, NoTangent())
+    end
+
+    return val, getindex_pullback
+end
+
 end # module

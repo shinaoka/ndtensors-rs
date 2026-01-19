@@ -13,7 +13,10 @@
 //!
 //! Level 3: Backend implementation (Generic, HPTT, etc.)
 //! ```
+//!
+//! BlockSparseTensor operations are in the `blocksparse` submodule.
 
+pub mod blocksparse;
 mod convert;
 mod copy;
 mod diag;

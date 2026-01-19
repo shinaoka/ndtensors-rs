@@ -60,6 +60,7 @@ pub mod contract;
 pub mod decomposition;
 pub mod error;
 pub mod operations;
+pub mod random;
 pub mod scalar;
 pub mod storage;
 pub mod strides;

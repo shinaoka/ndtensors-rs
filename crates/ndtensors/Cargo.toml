@@ -10,6 +10,8 @@ description = "Rust port of NDTensors.jl - tensor operations for ITensors"
 faer.workspace = true
 faer-traits.workspace = true
 thiserror.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
 
 [dev-dependencies]
 approx.workspace = true

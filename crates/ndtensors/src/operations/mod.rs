@@ -14,6 +14,8 @@
 //! Level 3: Backend implementation (Generic, HPTT, etc.)
 //! ```
 
+mod outer;
 mod permutedims;
 
+pub use outer::{outer, outer_into};
 pub use permutedims::{permutedims, permutedims_into};

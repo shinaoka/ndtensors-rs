@@ -17,6 +17,24 @@ See "NDTensors.jl Architecture Reference" section in `docs/design.md` for detail
 
 **Rationale**: Without structural compatibility, migration from Julia to Rust backend becomes impractical, defeating the project's purpose.
 
+### Generic Design Requirements
+
+**Keep code generic over Storage types and Backends.** This mirrors NDTensors.jl's architecture:
+
+| NDTensors.jl | ndtensors-rs | Description |
+|--------------|--------------|-------------|
+| `Dense{ElT, DataT}` | `Dense<T, D: DataBuffer<T>>` | Storage with backend-agnostic data |
+| `BlockSparse{...}` | `BlockSparse<T, D>` (future) | Sparse block storage |
+| `Vector{T}` | `CpuBuffer<T>` | CPU data backend |
+| `CuVector{T}` | `CudaBuffer<T>` (future) | CUDA GPU backend |
+| `AbstractArray` dispatch | `DataBuffer` trait | Backend abstraction |
+
+**Guidelines:**
+- Operations should be generic over `DataBuffer` trait, not hardcoded to `Vec<T>`
+- Backend-specific optimizations (e.g., faer for CPU) go in specialized impls
+- Use cargo features for optional backends: `default = ["cpu"]`, `cuda`, `metal`
+- CPU-only code paths must not break when GPU backends are added later
+
 ## Development Stage
 
 **Early development** - no backward compatibility required. Remove deprecated code immediately.
@@ -25,6 +43,23 @@ See "NDTensors.jl Architecture Reference" section in `docs/design.md` for detail
 
 - Use same language as past conversations (Japanese if previous was Japanese)
 - Source code and docs in English
+
+### Reference Sources
+
+**Prefer local `extern/` directory over web sources.** This repository includes local copies of reference projects:
+
+```
+extern/
+├── ITensors.jl/     # NDTensors.jl source (in NDTensors/)
+├── faer/            # faer linear algebra library
+└── ...
+```
+
+When investigating NDTensors.jl or faer implementation details:
+1. **First**: Check `extern/` for local source files
+2. **Only if not available locally**: Use web search or fetch
+
+This ensures consistent references and works offline.
 
 ## Code Style
 

@@ -135,7 +135,7 @@ ndtensors-rs is not a standalone project—it becomes the **shared foundation fo
 | `qr_positive`, `ql_positive` | ✅ | Positive R/L diagonal |
 | `random_orthog` | ✅ | Random orthogonal matrix |
 | `random_unitary` | ✅ | Random unitary matrix |
-| `eigen` | ❌ | Not yet (issue #50) |
+| `eigen`, `eigen_hermitian` | ✅ | Eigenvalue decomposition |
 
 ### Operations (BlockSparseTensor)
 

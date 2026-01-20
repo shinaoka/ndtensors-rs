@@ -72,7 +72,20 @@ ndtensors-rs is not a standalone project—it becomes the **shared foundation fo
 - Future Rust tensor network libraries share a common core (ndtensors-rs)
 - Avoid duplicate implementations, improve ecosystem quality
 
-### 8. Maintainability
+### 8. Stable AD Foundation for Tensor Networks
+
+- Build a **stable automatic differentiation foundation** for tensor networks in Rust
+- **Proven interoperability**: ndtensors-rs already demonstrates integration with:
+  - **ChainRules.jl** (Julia)
+  - **JAX** (Python) - custom_vjp/jvp
+  - **PyTorch** (Python) - autograd.Function
+- Single AD primitive implementation serves all host languages
+- **Native Rust AD backend** (forward, backward, backward-on-forward; prototype implemented):
+  - Pure Rust applications get AD out of the box
+  - **C, C++, Fortran can use AD via C API** — unprecedented for these languages
+  - Opens AD to first-principles calculation codes (e.g., DFT) that were previously difficult to differentiate
+
+### 9. Maintainability
 
 - Rust's type system catches bugs at compile time
 - Explicit ownership/borrowing prevents memory bugs

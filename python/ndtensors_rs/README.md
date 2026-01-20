@@ -7,20 +7,32 @@ Python bindings for the [ndtensors-rs](https://github.com/...) tensor library.
 ### Development Installation
 
 ```bash
-# From the repository root
-cd python/ndtensors_rs
-pip install -e ".[dev]"
+# From the repository root, use the test script
+./scripts/run_python_tests.sh
 ```
 
-This will:
-1. Build the Rust library (`cargo build --release -p ndtensors-capi`)
-2. Copy the shared library to the package
-3. Install the Python package in development mode
+Or manually:
+
+```bash
+# 1. Build Rust library
+cargo build --release -p ndtensors-capi
+
+# 2. Copy shared library to package
+cp target/release/libndtensors_capi.dylib python/ndtensors_rs/src/ndtensors_rs/
+# (use .so on Linux, .dll on Windows)
+
+# 3. Install with uv
+cd python/ndtensors_rs
+uv venv .venv
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+```
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.12+
 - Rust toolchain (for building the native library)
+- uv (Python package manager)
 - NumPy
 
 ## Usage

@@ -37,6 +37,7 @@ build/
 .venv/
 venv/
 .pytest_cache/
+uv.lock
 
 # External dependencies
 /extern/

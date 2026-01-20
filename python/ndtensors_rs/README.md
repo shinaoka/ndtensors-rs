@@ -74,14 +74,15 @@ The `contract` function uses labels to specify which dimensions to contract:
 # B has labels (-1, 2): dimension 0 -> contract, dimension 1 -> output dim 2
 c = contract(a, (1, -1), b, (-1, 2))
 
-# Inner product: scalar = sum_i(v1[i] * v2[i])
+# Inner product: result = sum_i(v1[i] * v2[i])
+# Note: Returns a 1D tensor with shape (1,), not a scalar
 result = contract(v1, (-1,), v2, (-1,))
 
 # Outer product: C[i,j] = v1[i] * v2[j]
 c = contract(v1, (1,), v2, (2,))
 
-# Batched matrix multiplication: C[b,i,k] = A[b,i,j] * B[b,j,k]
-c = contract(a, (1, 2, -1), b, (1, -1, 3))
+# 3D tensor contraction: C[i,j,l] = A[i,j,k] * B[k,l]
+c = contract(a, (1, 2, -1), b, (-1, 3))
 ```
 
 ## Testing

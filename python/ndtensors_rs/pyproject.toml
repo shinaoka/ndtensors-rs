@@ -34,6 +34,9 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/ndtensors_rs"]
 
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

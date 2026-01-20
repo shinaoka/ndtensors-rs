@@ -7,21 +7,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PYTHON_PKG_DIR="$PROJECT_ROOT/python/ndtensors_rs"
 
-echo "=== Building Rust library ==="
-cargo build --release -p ndtensors-capi
-
-echo "=== Copying shared library to package ==="
-# Determine library extension based on OS
-case "$(uname -s)" in
-    Darwin*)  LIB_EXT=".dylib" ;;
-    Linux*)   LIB_EXT=".so" ;;
-    MINGW*|MSYS*|CYGWIN*)  LIB_EXT=".dll" ;;
-    *)        echo "Unsupported OS"; exit 1 ;;
-esac
-
-LIB_NAME="libndtensors_capi${LIB_EXT}"
-cp "$PROJECT_ROOT/target/release/$LIB_NAME" "$PYTHON_PKG_DIR/src/ndtensors_rs/"
-
 echo "=== Setting up Python environment ==="
 cd "$PYTHON_PKG_DIR"
 
@@ -29,6 +14,7 @@ cd "$PYTHON_PKG_DIR"
 uv sync --extra dev
 
 echo "=== Running Python tests ==="
+# conftest.py automatically builds Rust library if needed
 uv run pytest -v
 
 echo "=== All Python tests passed ==="

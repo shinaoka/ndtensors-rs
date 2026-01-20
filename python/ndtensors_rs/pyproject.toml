@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ndtensors-rs"
+version = "0.1.0"
+description = "Python bindings for ndtensors-rs tensor library"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "ndtensors-rs contributors"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "numpy>=1.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ndtensors_rs"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

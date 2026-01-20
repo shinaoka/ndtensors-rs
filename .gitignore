@@ -25,5 +25,18 @@ Manifest.toml
 .DS_Store
 Thumbs.db
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+
 # External dependencies
 /extern/

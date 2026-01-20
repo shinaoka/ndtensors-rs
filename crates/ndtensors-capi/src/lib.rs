@@ -1373,11 +1373,7 @@ mod tests {
         for i in 0..6 {
             let mut val = 0.0;
             assert_eq!(ndt_tensor_f64_get_linear(tensor, i, &mut val), NDT_SUCCESS);
-            assert!(
-                (0.0..1.0).contains(&val),
-                "value {} not in [0, 1)",
-                val
-            );
+            assert!((0.0..1.0).contains(&val), "value {} not in [0, 1)", val);
         }
 
         ndt_tensor_f64_release(tensor);

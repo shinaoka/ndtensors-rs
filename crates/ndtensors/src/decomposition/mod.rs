@@ -11,6 +11,8 @@
 //! - [`ql`] / [`ql_positive`]: QL Decomposition (with optional positive diagonal)
 //! - [`polar`]: Polar Decomposition (A = U * P)
 //! - [`matrix_exp`]: Matrix Exponential
+//! - [`eigen_hermitian`]: Eigenvalue decomposition for Hermitian matrices
+//! - [`eigen`]: Eigenvalue decomposition for general matrices
 //!
 //! # Design
 //!
@@ -41,6 +43,7 @@
 //! let ql_result = ql(&t, &[0, 1], &[2]).unwrap();
 //! ```
 
+mod eigen;
 mod exp;
 mod polar;
 mod positive;
@@ -49,6 +52,7 @@ mod qr;
 mod svd;
 mod util;
 
+pub use eigen::{eigen, eigen_hermitian};
 pub use exp::matrix_exp;
 pub use polar::{PolarResult, polar};
 pub use positive::{ql_positive, qr_positive};

@@ -62,11 +62,48 @@ jobs:
       - name: Run tests
         run: cargo test --release --workspace
 
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-coverage-
+
+      - name: Generate coverage
+        run: cargo llvm-cov --all-features --workspace --fail-under-lines 80 --lcov --output-path lcov.info
+
+      # Codecov upload commented out - can be enabled later after CODECOV_TOKEN is configured
+      # - name: Upload to codecov.io
+      #   uses: codecov/codecov-action@v4
+      #   with:
+      #     files: lcov.info
+      #     fail_ci_if_error: false
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+
   rollup-rs:
     runs-on: ubuntu-latest
     needs:
       - lint
       - test
+      - coverage
     if: always()
     steps:
       - name: All Rust checks passed

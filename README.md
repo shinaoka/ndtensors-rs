@@ -166,13 +166,17 @@ ndtensors-rs is not a standalone project—it becomes the **shared foundation fo
 | Phase | Feature | Status | Notes |
 |-------|---------|--------|-------|
 | 1 | VJP primitives (`contract_vjp`, `svd_vjp`, etc.) | 🔶 | `contract_vjp` done, others pending |
-| 2 | JVP primitives (forward-mode) | ❌ | Not yet |
-| 3 | Native Rust AD (Tape/Dual) | ❌ | For pure Rust usage |
-| 4 | Hessian-vector products | ❌ | Requires Phase 1+2 |
+| 2 | JVP primitives (forward-mode) | 🔶 | `contract_jvp` done, others pending |
+| 3a | Native Rust backward-mode AD | ✅ | `TrackedTensor` + tape (issue #54) |
+| 3b | Native Rust forward-mode AD | ✅ | `DualTensor` + JVP (issue #55) |
+| 4 | Hessian-vector products | ❌ | Requires combining forward + backward |
 
 Host language integration:
 - **Julia**: ChainRules.jl rrule/frule
 - **Python**: JAX custom_vjp/jvp, PyTorch autograd.Function
+
+**Native Rust AD** enables automatic differentiation without relying on host language AD systems.
+This is useful for pure Rust applications and provides the foundation for Hessian-vector products (Phase 4).
 
 ## Usage Examples
 

@@ -3,7 +3,7 @@ module NDTensorsRS
 using Libdl
 using ChainRulesCore
 
-export TensorF64, ones, rand, randn, contract, contract_vjp
+export TensorF64, contract, contract_vjp
 
 # Load the shared library
 const libpath = joinpath(dirname(dirname(@__FILE__)), "deps", "libndtensors_capi.$(dlext)")

@@ -85,6 +85,63 @@ c = contract(v1, (1,), v2, (2,))
 c = contract(a, (1, 2, -1), b, (-1, 3))
 ```
 
+## Automatic Differentiation Integration
+
+### JAX Integration
+
+```python
+import jax
+import jax.numpy as jnp
+from ndtensors_rs.jax_ops import jax_contract
+
+a = jnp.ones((2, 3))
+b = jnp.ones((3, 4))
+
+# Forward pass
+c = jax_contract(a, (1, -1), b, (-1, 2))
+
+# Backward pass with jax.grad
+def loss_fn(a, b):
+    return jax_contract(a, (1, -1), b, (-1, 2)).sum()
+
+grad_a, grad_b = jax.grad(loss_fn, argnums=(0, 1))(a, b)
+
+# JIT compilation (labels must be static)
+jit_contract = jax.jit(jax_contract, static_argnums=(1, 3))
+c = jit_contract(a, (1, -1), b, (-1, 2))
+```
+
+### PyTorch Integration
+
+```python
+import torch
+from ndtensors_rs.torch_ops import torch_contract
+
+a = torch.ones((2, 3), requires_grad=True)
+b = torch.ones((3, 4), requires_grad=True)
+
+# Forward pass
+c = torch_contract(a, (1, -1), b, (-1, 2))
+
+# Backward pass
+loss = c.sum()
+loss.backward()
+print(a.grad, b.grad)
+```
+
+### Installation with AD Support
+
+```bash
+# JAX support
+uv sync --extra jax
+
+# PyTorch support
+uv sync --extra torch
+
+# Both JAX and PyTorch
+uv sync --extra all
+```
+
 ## Testing
 
 ```bash

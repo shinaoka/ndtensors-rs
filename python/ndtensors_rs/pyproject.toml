@@ -30,6 +30,16 @@ dev = [
     "pytest>=7.0",
     "pytest-cov",
 ]
+jax = [
+    "jax>=0.4.0",
+    "jaxlib>=0.4.0",
+]
+torch = [
+    "torch>=2.0.0",
+]
+all = [
+    "ndtensors-rs[dev,jax,torch]",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ndtensors_rs"]

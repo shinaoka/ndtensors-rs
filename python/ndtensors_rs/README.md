@@ -21,11 +21,12 @@ cargo build --release -p ndtensors-capi
 cp target/release/libndtensors_capi.dylib python/ndtensors_rs/src/ndtensors_rs/
 # (use .so on Linux, .dll on Windows)
 
-# 3. Install with uv
+# 3. Sync dependencies with uv
 cd python/ndtensors_rs
-uv venv .venv
-source .venv/bin/activate
-uv pip install -e ".[dev]"
+uv sync --extra dev
+
+# 4. Run commands with uv run
+uv run pytest -v
 ```
 
 ### Prerequisites
@@ -106,7 +107,3 @@ c = contract(a, (1, 2, -1), b, (1, -1, 3))
 cd python/ndtensors_rs
 pytest
 ```
-
-## License
-
-MIT

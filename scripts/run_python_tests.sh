@@ -25,12 +25,10 @@ cp "$PROJECT_ROOT/target/release/$LIB_NAME" "$PYTHON_PKG_DIR/src/ndtensors_rs/"
 echo "=== Setting up Python environment ==="
 cd "$PYTHON_PKG_DIR"
 
-# Create virtual environment and install with uv
-uv venv .venv
-source .venv/bin/activate
-uv pip install -e ".[dev]"
+# Sync dependencies with uv (creates venv and installs deps)
+uv sync --extra dev
 
 echo "=== Running Python tests ==="
-pytest -v
+uv run pytest -v
 
 echo "=== All Python tests passed ==="

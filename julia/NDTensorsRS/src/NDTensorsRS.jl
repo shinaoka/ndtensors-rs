@@ -68,6 +68,72 @@ end
 TensorF64(shape::Vararg{Int, N}) where N = TensorF64(shape)
 
 """
+    ones(shape::NTuple{N, Int}) where N
+
+Create a tensor filled with ones.
+"""
+function Base.ones(::Type{TensorF64}, shape::NTuple{N, Int}) where N
+    shape_arr = collect(Csize_t, shape)
+    status = Ref{Cint}(-999)
+    ptr = ccall(
+        (:ndt_tensor_f64_ones, libpath),
+        Ptr{Cvoid},
+        (Ptr{Csize_t}, Csize_t, Ptr{Cint}),
+        shape_arr, N, status
+    )
+    if status[] != NDT_SUCCESS
+        error("Failed to create ones tensor: status = $(status[])")
+    end
+    TensorF64(ptr)
+end
+
+Base.ones(::Type{TensorF64}, shape::Vararg{Int, N}) where N = ones(TensorF64, shape)
+
+"""
+    rand(shape::NTuple{N, Int}) where N
+
+Create a tensor with uniform random values in [0, 1).
+"""
+function Base.rand(::Type{TensorF64}, shape::NTuple{N, Int}) where N
+    shape_arr = collect(Csize_t, shape)
+    status = Ref{Cint}(-999)
+    ptr = ccall(
+        (:ndt_tensor_f64_rand, libpath),
+        Ptr{Cvoid},
+        (Ptr{Csize_t}, Csize_t, Ptr{Cint}),
+        shape_arr, N, status
+    )
+    if status[] != NDT_SUCCESS
+        error("Failed to create random tensor: status = $(status[])")
+    end
+    TensorF64(ptr)
+end
+
+Base.rand(::Type{TensorF64}, shape::Vararg{Int, N}) where N = rand(TensorF64, shape)
+
+"""
+    randn(shape::NTuple{N, Int}) where N
+
+Create a tensor with standard normal random values (mean=0, std=1).
+"""
+function Base.randn(::Type{TensorF64}, shape::NTuple{N, Int}) where N
+    shape_arr = collect(Csize_t, shape)
+    status = Ref{Cint}(-999)
+    ptr = ccall(
+        (:ndt_tensor_f64_randn, libpath),
+        Ptr{Cvoid},
+        (Ptr{Csize_t}, Csize_t, Ptr{Cint}),
+        shape_arr, N, status
+    )
+    if status[] != NDT_SUCCESS
+        error("Failed to create randn tensor: status = $(status[])")
+    end
+    TensorF64(ptr)
+end
+
+Base.randn(::Type{TensorF64}, shape::Vararg{Int, N}) where N = randn(TensorF64, shape)
+
+"""
     TensorF64(data::Array{Float64}, shape::NTuple{N, Int}) where N
 
 Create a tensor from existing data.

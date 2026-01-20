@@ -121,6 +121,177 @@ pub extern "C" fn ndt_tensor_f64_zeros(
     }
 }
 
+/// Create a new tensor filled with ones.
+///
+/// # Arguments
+/// * `shape` - Pointer to array of dimensions
+/// * `ndim` - Number of dimensions
+/// * `status` - Pointer to receive status code
+///
+/// # Returns
+/// Pointer to new tensor, or null on error
+///
+/// # Ownership
+/// On success, the caller is responsible for releasing the tensor
+/// by calling `ndt_tensor_f64_release`.
+#[unsafe(no_mangle)]
+pub extern "C" fn ndt_tensor_f64_ones(
+    shape: *const size_t,
+    ndim: size_t,
+    status: *mut StatusCode,
+) -> *mut ndt_tensor_f64 {
+    if status.is_null() {
+        return ptr::null_mut();
+    }
+
+    if shape.is_null() && ndim > 0 {
+        unsafe {
+            *status = NDT_INVALID_ARGUMENT;
+        }
+        return ptr::null_mut();
+    }
+
+    let result = catch_unwind(|| {
+        let shape_slice = if ndim == 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(shape, ndim) }
+        };
+
+        let tensor = Tensor::<f64>::ones(shape_slice);
+        Box::into_raw(Box::new(ndt_tensor_f64::from_tensor(tensor)))
+    });
+
+    match result {
+        Ok(ptr) => {
+            unsafe {
+                *status = NDT_SUCCESS;
+            }
+            ptr
+        }
+        Err(_) => {
+            unsafe {
+                *status = NDT_INTERNAL_ERROR;
+            }
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Create a new tensor with uniform random values in [0, 1).
+///
+/// # Arguments
+/// * `shape` - Pointer to array of dimensions
+/// * `ndim` - Number of dimensions
+/// * `status` - Pointer to receive status code
+///
+/// # Returns
+/// Pointer to new tensor, or null on error
+///
+/// # Ownership
+/// On success, the caller is responsible for releasing the tensor
+/// by calling `ndt_tensor_f64_release`.
+#[unsafe(no_mangle)]
+pub extern "C" fn ndt_tensor_f64_rand(
+    shape: *const size_t,
+    ndim: size_t,
+    status: *mut StatusCode,
+) -> *mut ndt_tensor_f64 {
+    if status.is_null() {
+        return ptr::null_mut();
+    }
+
+    if shape.is_null() && ndim > 0 {
+        unsafe {
+            *status = NDT_INVALID_ARGUMENT;
+        }
+        return ptr::null_mut();
+    }
+
+    let result = catch_unwind(|| {
+        let shape_slice = if ndim == 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(shape, ndim) }
+        };
+
+        let tensor = Tensor::<f64>::random(shape_slice);
+        Box::into_raw(Box::new(ndt_tensor_f64::from_tensor(tensor)))
+    });
+
+    match result {
+        Ok(ptr) => {
+            unsafe {
+                *status = NDT_SUCCESS;
+            }
+            ptr
+        }
+        Err(_) => {
+            unsafe {
+                *status = NDT_INTERNAL_ERROR;
+            }
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Create a new tensor with standard normal random values (mean=0, std=1).
+///
+/// # Arguments
+/// * `shape` - Pointer to array of dimensions
+/// * `ndim` - Number of dimensions
+/// * `status` - Pointer to receive status code
+///
+/// # Returns
+/// Pointer to new tensor, or null on error
+///
+/// # Ownership
+/// On success, the caller is responsible for releasing the tensor
+/// by calling `ndt_tensor_f64_release`.
+#[unsafe(no_mangle)]
+pub extern "C" fn ndt_tensor_f64_randn(
+    shape: *const size_t,
+    ndim: size_t,
+    status: *mut StatusCode,
+) -> *mut ndt_tensor_f64 {
+    if status.is_null() {
+        return ptr::null_mut();
+    }
+
+    if shape.is_null() && ndim > 0 {
+        unsafe {
+            *status = NDT_INVALID_ARGUMENT;
+        }
+        return ptr::null_mut();
+    }
+
+    let result = catch_unwind(|| {
+        let shape_slice = if ndim == 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(shape, ndim) }
+        };
+
+        let tensor = Tensor::<f64>::randn(shape_slice);
+        Box::into_raw(Box::new(ndt_tensor_f64::from_tensor(tensor)))
+    });
+
+    match result {
+        Ok(ptr) => {
+            unsafe {
+                *status = NDT_SUCCESS;
+            }
+            ptr
+        }
+        Err(_) => {
+            unsafe {
+                *status = NDT_INTERNAL_ERROR;
+            }
+            ptr::null_mut()
+        }
+    }
+}
+
 /// Create a new tensor from data.
 ///
 /// # Arguments
@@ -1146,5 +1317,107 @@ mod tests {
         ndt_tensor_f64_release(tangent_b);
         ndt_tensor_f64_release(primal);
         ndt_tensor_f64_release(tangent);
+    }
+
+    #[test]
+    fn test_tensor_ones() {
+        let shape = [2usize, 3usize];
+        let mut status: StatusCode = -999;
+
+        let tensor = ndt_tensor_f64_ones(shape.as_ptr(), 2, &mut status);
+        assert_eq!(status, NDT_SUCCESS);
+        assert!(!tensor.is_null());
+
+        assert_eq!(ndt_tensor_f64_ndim(tensor), 2);
+        assert_eq!(ndt_tensor_f64_len(tensor), 6);
+
+        // Verify all values are 1.0
+        for i in 0..6 {
+            let mut val = 0.0;
+            assert_eq!(ndt_tensor_f64_get_linear(tensor, i, &mut val), NDT_SUCCESS);
+            assert_eq!(val, 1.0);
+        }
+
+        ndt_tensor_f64_release(tensor);
+    }
+
+    #[test]
+    fn test_tensor_ones_scalar() {
+        // 0-dimensional tensor (scalar)
+        let mut status: StatusCode = -999;
+        let tensor = ndt_tensor_f64_ones(std::ptr::null(), 0, &mut status);
+        assert_eq!(status, NDT_SUCCESS);
+        assert!(!tensor.is_null());
+        assert_eq!(ndt_tensor_f64_len(tensor), 1);
+
+        let mut val = 0.0;
+        assert_eq!(ndt_tensor_f64_get_linear(tensor, 0, &mut val), NDT_SUCCESS);
+        assert_eq!(val, 1.0);
+
+        ndt_tensor_f64_release(tensor);
+    }
+
+    #[test]
+    fn test_tensor_rand() {
+        let shape = [2usize, 3usize];
+        let mut status: StatusCode = -999;
+
+        let tensor = ndt_tensor_f64_rand(shape.as_ptr(), 2, &mut status);
+        assert_eq!(status, NDT_SUCCESS);
+        assert!(!tensor.is_null());
+
+        assert_eq!(ndt_tensor_f64_ndim(tensor), 2);
+        assert_eq!(ndt_tensor_f64_len(tensor), 6);
+
+        // Verify all values are in [0, 1)
+        for i in 0..6 {
+            let mut val = 0.0;
+            assert_eq!(ndt_tensor_f64_get_linear(tensor, i, &mut val), NDT_SUCCESS);
+            assert!((0.0..1.0).contains(&val), "value {} not in [0, 1)", val);
+        }
+
+        ndt_tensor_f64_release(tensor);
+    }
+
+    #[test]
+    fn test_tensor_rand_null_status() {
+        let shape = [2usize, 3usize];
+        let tensor = ndt_tensor_f64_rand(shape.as_ptr(), 2, std::ptr::null_mut());
+        assert!(tensor.is_null());
+    }
+
+    #[test]
+    fn test_tensor_randn() {
+        let shape = [100usize]; // Use larger size for statistical test
+        let mut status: StatusCode = -999;
+
+        let tensor = ndt_tensor_f64_randn(shape.as_ptr(), 1, &mut status);
+        assert_eq!(status, NDT_SUCCESS);
+        assert!(!tensor.is_null());
+
+        assert_eq!(ndt_tensor_f64_ndim(tensor), 1);
+        assert_eq!(ndt_tensor_f64_len(tensor), 100);
+
+        // Verify values are roughly normal (mean near 0)
+        let data = ndt_tensor_f64_data(tensor);
+        assert!(!data.is_null());
+
+        let sum: f64 = unsafe { std::slice::from_raw_parts(data, 100).iter().sum() };
+        let mean = sum / 100.0;
+        assert!(
+            mean.abs() < 0.5,
+            "mean {} too far from 0 for normal distribution",
+            mean
+        );
+
+        ndt_tensor_f64_release(tensor);
+    }
+
+    #[test]
+    fn test_tensor_randn_null_shape_with_ndim() {
+        let mut status: StatusCode = -999;
+        let tensor = ndt_tensor_f64_randn(std::ptr::null(), 2, &mut status);
+        assert_eq!(status, NDT_INVALID_ARGUMENT);
+        assert!(tensor.is_null());
     }
 }

@@ -15,6 +15,56 @@ using NDTensorsRS
         end
     end
 
+    @testset "Tensor ones" begin
+        t = ones(TensorF64, 2, 3)
+        @test ndims(t) == 2
+        @test length(t) == 6
+        @test size(t) == (2, 3)
+
+        # All elements should be one
+        for i in 1:6
+            @test t[i] == 1.0
+        end
+
+        # Test tuple form
+        t2 = ones(TensorF64, (3, 4))
+        @test size(t2) == (3, 4)
+        @test t2[1] == 1.0
+    end
+
+    @testset "Tensor rand" begin
+        t = rand(TensorF64, 2, 3)
+        @test ndims(t) == 2
+        @test length(t) == 6
+        @test size(t) == (2, 3)
+
+        # All elements should be in [0, 1)
+        for i in 1:6
+            @test 0.0 <= t[i] < 1.0
+        end
+
+        # Test tuple form
+        t2 = rand(TensorF64, (3, 4))
+        @test size(t2) == (3, 4)
+        @test 0.0 <= t2[1] < 1.0
+    end
+
+    @testset "Tensor randn" begin
+        # Use larger size for statistical test
+        t = randn(TensorF64, 100)
+        @test ndims(t) == 1
+        @test length(t) == 100
+
+        # Verify values are roughly normal (mean near 0)
+        arr = Array(t)
+        mean_val = sum(arr) / length(arr)
+        @test abs(mean_val) < 0.5  # Should be near 0
+
+        # Test 2D form
+        t2 = randn(TensorF64, 10, 10)
+        @test size(t2) == (10, 10)
+    end
+
     @testset "Tensor from data" begin
         data = [1.0 3.0 5.0; 2.0 4.0 6.0]  # 2x3 matrix
         t = TensorF64(data, (2, 3))

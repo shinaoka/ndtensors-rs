@@ -30,7 +30,7 @@ mod gemm;
 mod naive;
 mod properties;
 
-pub use naive::{contract, contract_vjp};
+pub use naive::{contract, contract_jvp, contract_vjp};
 pub use properties::ContractionProperties;
 
 // Re-export GEMM-based contraction for explicit use

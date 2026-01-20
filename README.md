@@ -169,7 +169,7 @@ ndtensors-rs is not a standalone project—it becomes the **shared foundation fo
 | 2 | JVP primitives (forward-mode) | 🔶 | `contract_jvp` done, others pending |
 | 3a | Native Rust backward-mode AD | ✅ | `TrackedTensor` + tape (issue #54) |
 | 3b | Native Rust forward-mode AD | ✅ | `DualTensor` + JVP (issue #55) |
-| 4 | Hessian-vector products | ❌ | Requires combining forward + backward |
+| 4 | Hessian-vector products | ✅ | `hvp_scalar` via forward-on-reverse (issue #56) |
 
 Host language integration:
 - **Julia**: ChainRules.jl rrule/frule

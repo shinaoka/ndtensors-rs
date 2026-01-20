@@ -105,5 +105,5 @@ c = contract(a, (1, 2, -1), b, (1, -1, 3))
 
 ```bash
 cd python/ndtensors_rs
-pytest
+uv run pytest
 ```

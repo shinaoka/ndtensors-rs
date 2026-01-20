@@ -145,6 +145,7 @@ cargo test               # Run all tests
 # Minor: branch workflow
 git checkout -b fix-name && git add -A && git commit -m "msg"
 cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings  # Lint before push
+cargo llvm-cov --all-features --workspace --fail-under-lines 80
 git push -u origin fix-name
 gh pr create --base main --title "Title" --body "Desc"
 gh pr merge --auto --squash --delete-branch

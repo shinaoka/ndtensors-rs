@@ -17,5 +17,6 @@ Before working, read:
 - **Always run `cargo fmt --all` before committing**
 - **Review Cargo.toml changes** - use `git diff Cargo.toml` to catch accidental dependency changes
 - **Citation required** - This project requires citing ITensors.jl paper (see README.md)
+- **Avoid specialization** - Prefer generic implementations using trait bounds over type-specific implementations (e.g., use `fn foo<T: Scalar>()` instead of `fn foo_f64()` and `fn foo_c64()`). Only specialize when generics are genuinely impossible.
 
 @AGENTS.md

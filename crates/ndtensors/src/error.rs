@@ -61,4 +61,8 @@ pub enum TensorError {
     /// Invalid operation.
     #[error("invalid operation: {0}")]
     InvalidOperation(String),
+
+    /// Eigendecomposition error.
+    #[error("eigendecomposition error: {message}")]
+    EigenError { message: String },
 }

@@ -13,10 +13,11 @@ thiserror.workspace = true
 rand.workspace = true
 rand_distr.workspace = true
 smallvec = "1.11"
+petgraph = { version = "0.8", optional = true }
 
 [features]
 default = []
-autodiff = []
+autodiff = ["petgraph"]
 
 [dev-dependencies]
 approx.workspace = true
